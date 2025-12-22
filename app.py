@@ -10,7 +10,7 @@ from datetime import datetime
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
 st.title("💰 媽媽狩獵者 的資產儀表板")
 
-# --- [新增功能] 讀取與寫入設定檔 (含加密貨幣成本) ---
+# --- [新增功能] 讀取與寫入設定檔 (改為紀錄台幣成本) ---
 DATA_FILE = "cash_data.json"
 
 def load_settings():
@@ -18,16 +18,16 @@ def load_settings():
     default_data = {
         "twd": 50000, 
         "usd": 1000,
-        # 顆數
-        "btc": 0.0, "eth": 0.0, "sol": 0.0,
-        # [新增] 成本價 (USD)
-        "btc_cost": 0.0, "eth_cost": 0.0, "sol_cost": 0.0
+        # 你的預設持倉與台幣成本
+        "btc": 0.0, "btc_cost_twd": 2911966.1,
+        "eth": 0.0, "eth_cost_twd": 93579.1,
+        "sol": 0.0, "sol_cost_twd": 3922.8
     }
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
                 saved = json.load(f)
-                # 合併預設值 (確保新欄位 cost 能被讀入)
+                # 確保舊檔案也能讀取到新欄位
                 return {**default_data, **saved}
         except:
             pass
@@ -66,32 +66,30 @@ cash_usd = st.sidebar.number_input("美金 (USD)", value=float(saved_data["usd"]
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🪙 加密貨幣設定")
-
-# 使用 Expander 讓介面整潔一點，或直接顯示
-# 這裡我把「顆數」跟「成本」做在一起
-st.sidebar.caption("請輸入持有數量與平均成本(USD)")
+st.sidebar.caption("請輸入持有數量與 **台幣平均成本**")
 
 # BTC
 c1, c2 = st.sidebar.columns(2)
 btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.001, format="%.4f")
-btc_cost = c2.number_input("BTC 均價(U)", value=float(saved_data["btc_cost"]), step=100.0, format="%.2f")
+# key值換成 _twd 避免跟舊的衝突
+btc_cost_twd = c2.number_input("BTC 均價(NT)", value=float(saved_data.get("btc_cost_twd", 2911966.1)), step=1000.0, format="%.1f")
 
 # ETH
 c3, c4 = st.sidebar.columns(2)
 eth_qty = c3.number_input("ETH 顆數", value=float(saved_data["eth"]), step=0.01, format="%.4f")
-eth_cost = c4.number_input("ETH 均價(U)", value=float(saved_data["eth_cost"]), step=10.0, format="%.2f")
+eth_cost_twd = c4.number_input("ETH 均價(NT)", value=float(saved_data.get("eth_cost_twd", 93579.1)), step=100.0, format="%.1f")
 
 # SOL
 c5, c6 = st.sidebar.columns(2)
 sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.1, format="%.2f")
-sol_cost = c6.number_input("SOL 均價(U)", value=float(saved_data["sol_cost"]), step=1.0, format="%.2f")
+sol_cost_twd = c6.number_input("SOL 均價(NT)", value=float(saved_data.get("sol_cost_twd", 3922.8)), step=10.0, format="%.1f")
 
-# 存檔檢查
+# 存檔
 current_data = {
     "twd": cash_twd, "usd": cash_usd,
-    "btc": btc_qty, "btc_cost": btc_cost,
-    "eth": eth_qty, "eth_cost": eth_cost,
-    "sol": sol_qty, "sol_cost": sol_cost
+    "btc": btc_qty, "btc_cost_twd": btc_cost_twd,
+    "eth": eth_qty, "eth_cost_twd": eth_cost_twd,
+    "sol": sol_qty, "sol_cost_twd": sol_cost_twd
 }
 if current_data != saved_data:
     save_settings(current_data)
@@ -99,7 +97,7 @@ if current_data != saved_data:
 # --- 3. 核心計算函數 ---
 @st.cache_data(ttl=300) 
 def get_data_and_calculate(btc_d, eth_d, sol_d):
-    # btc_d 格式: {'qty': 0.1, 'cost': 50000}
+    # 傳入的 *_d 包含 'qty' 和 'cost_twd'
     try:
         usdtwd = yf.Ticker("USDTWD=X").history(period="1d")['Close'].iloc[-1]
     except:
@@ -108,7 +106,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
     data_list = []
     today_date = pd.Timestamp.now().date()
 
-    # 台股
+    # 台股 (邏輯不變)
     for item in tw_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
@@ -144,7 +142,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         except:
             pass
 
-    # 美股
+    # 美股 (週一不顯示波動邏輯不變)
     for item in us_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
@@ -183,11 +181,11 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         except:
             pass
 
-    # 加密貨幣 (計算損益邏輯更新)
+    # 加密貨幣 (改用台幣成本計算)
     crypto_map = {
-        'BTC-USD': {'name': 'BTC', 'qty': btc_d['qty'], 'cost': btc_d['cost']},
-        'ETH-USD': {'name': 'ETH', 'qty': eth_d['qty'], 'cost': eth_d['cost']},
-        'SOL-USD': {'name': 'SOL', 'qty': sol_d['qty'], 'cost': sol_d['cost']}
+        'BTC-USD': {'name': 'BTC', 'qty': btc_d['qty'], 'cost_twd': btc_d['cost_twd']},
+        'ETH-USD': {'name': 'ETH', 'qty': eth_d['qty'], 'cost_twd': eth_d['cost_twd']},
+        'SOL-USD': {'name': 'SOL', 'qty': sol_d['qty'], 'cost_twd': sol_d['cost_twd']}
     }
     
     for code, info in crypto_map.items():
@@ -198,33 +196,41 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                 hist = hist.dropna()
                 
                 if not hist.empty:
-                    price = hist['Close'].iloc[-1]
+                    # 這是美金現價
+                    price_usd = hist['Close'].iloc[-1]
+                    
                     if len(hist) >= 2:
-                        prev = hist['Close'].iloc[-2]
-                        change_p = price - prev
-                        change_pct = (change_p / prev) * 100
+                        prev_usd = hist['Close'].iloc[-2]
+                        change_usd = price_usd - prev_usd
+                        change_pct = (change_usd / prev_usd) * 100
                     else:
-                        change_p = 0
+                        change_usd = 0
                         change_pct = 0
                     
-                    # 計算市值與成本 (美金)
-                    market_val_usd = price * info['qty']
-                    cost_val_usd = info['cost'] * info['qty']
+                    # --- 關鍵換算 ---
+                    # 1. 計算台幣現價 (美金現價 * 匯率)
+                    price_twd = price_usd * usdtwd
                     
-                    # 計算損益
-                    profit_usd = market_val_usd - cost_val_usd
-                    # 避免除以 0
-                    profit_pct = (profit_usd / cost_val_usd * 100) if cost_val_usd > 0 else 0
+                    # 2. 市值 (台幣)
+                    market_val_twd = price_twd * info['qty']
+                    
+                    # 3. 總成本 (台幣成本 * 顆數)
+                    total_cost_twd = info['cost_twd'] * info['qty']
+                    
+                    # 4. 總損益 (台幣)
+                    profit_twd = market_val_twd - total_cost_twd
+                    
+                    profit_pct = (profit_twd / total_cost_twd * 100) if total_cost_twd > 0 else 0
                     
                     data_list.append({
                         "代號": info['name'],
                         "類型": "Crypto",
-                        "現價": price,
-                        "漲跌": change_p,
+                        "現價": price_usd, # 表格還是顯示美金報價比較習慣
+                        "漲跌": change_usd,
                         "幅度%": change_pct,
-                        "今日損益": (change_p * info['qty']) * usdtwd,
-                        "市值": market_val_usd * usdtwd,
-                        "總損益": profit_usd * usdtwd, # 換算回台幣顯示
+                        "今日損益": (change_usd * info['qty']) * usdtwd,
+                        "市值": market_val_twd,
+                        "總損益": profit_twd, # 這是準確的台幣損益
                         "總報酬%": profit_pct
                     })
             except:
@@ -243,10 +249,10 @@ def color_tw_style(val):
 # --- 5. 執行與計算 ---
 st.write("🔄 正在取得最新報價 (含加密貨幣)...")
 
-# 包裝一下參數傳進去
-btc_data = {'qty': btc_qty, 'cost': btc_cost}
-eth_data = {'qty': eth_qty, 'cost': eth_cost}
-sol_data = {'qty': sol_qty, 'cost': sol_cost}
+# 包裝參數 (改成 cost_twd)
+btc_data = {'qty': btc_qty, 'cost_twd': btc_cost_twd}
+eth_data = {'qty': eth_qty, 'cost_twd': eth_cost_twd}
+sol_data = {'qty': sol_qty, 'cost_twd': sol_cost_twd}
 
 df, rate = get_data_and_calculate(btc_data, eth_data, sol_data)
 
@@ -260,8 +266,7 @@ cash_total_val = cash_twd + (cash_usd * rate)
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 total_profit = df['總損益'].sum() 
 
-# 投資報酬率 = 總獲利 / 總成本
-# 總成本 = (總資產 - 總獲利 - 現金)
+# 投資報酬率計算
 total_return_rate = 0 
 invested_capital = (stock_total_val + crypto_total_val) - total_profit
 if invested_capital > 0:
@@ -305,14 +310,14 @@ with col_table:
     
     styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']) \
         .format({
-            '現價': '{:.2f}',
+            '現價': '{:.2f}', # 這裡是美金
             '漲跌': '{:+.2f}',
             '幅度%': '{:+.2f}%',
             '市值': '${:,.0f}',
             '今日損益': '${:,.0f}',
             '佔比%': '{:.1f}%',        
             '總報酬%': '{:+.2f}%',
-            '總損益': '${:,.0f}'
+            '總損益': '${:,.0f}' # 這裡是台幣
         })
 
     st.dataframe(
@@ -322,6 +327,7 @@ with col_table:
         hide_index=True,
         column_config={
             "代號": st.column_config.TextColumn("代號"),
+            "現價": st.column_config.NumberColumn("現價 (USD)"), # 標註清楚是美金
             "佔比%": st.column_config.ProgressColumn(
                 "佔總資產 %", 
                 format="%.1f%%", 
