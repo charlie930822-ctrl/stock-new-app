@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import json
 import os
+from datetime import datetime
 
 # --- 設定網頁標題與版面 ---
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
@@ -83,6 +84,9 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
         
     data_list = []
     
+    # 取得系統當前日期 (用於判斷是否為當日數據)
+    today_date = pd.Timestamp.now().date()
+
     # 台股
     for item in tw_portfolio:
         try:
@@ -119,7 +123,7 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
         except:
             pass
 
-    # 美股
+    # 美股 (修改重點區)
     for item in us_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
@@ -128,11 +132,20 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
-                if len(hist) >= 2:
+                
+                # [關鍵修改] 判斷這筆資料的日期是否為「今天」
+                # 因為美股在台灣週一白天時，最新資料仍是「上週五」
+                # 如果資料日期 != 今天，代表今日尚未開盤，強制將漲跌設為 0
+                data_date = hist.index[-1].date()
+                is_today_data = (data_date == today_date)
+
+                if is_today_data and len(hist) >= 2:
+                    # 如果是今天的資料 (開盤後)，正常計算漲跌
                     prev_close = hist['Close'].iloc[-2]
                     change_price = price - prev_close
                     change_pct = (change_price / prev_close) * 100
                 else:
+                    # 如果是舊資料 (尚未開盤)，顯示 0
                     change_price = 0
                     change_pct = 0
                 
@@ -147,6 +160,7 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
                     "現價": price,
                     "漲跌": change_price,        
                     "幅度%": change_pct,
+                    # 今日損益會因為 change_price 為 0 而變為 0
                     "今日損益": (change_price * item['shares']) * usdtwd,
                     "市值": market_val_usd * usdtwd,
                     "總損益": profit_usd * usdtwd,
@@ -155,7 +169,7 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
         except:
             pass
 
-    # 加密貨幣
+    # 加密貨幣 (維持不變，因為它是 24 小時交易)
     crypto_map = {
         'BTC-USD': {'name': 'BTC', 'qty': btc_q},
         'ETH-USD': {'name': 'ETH', 'qty': eth_q},
@@ -202,6 +216,7 @@ def color_tw_style(val):
     if isinstance(val, (int, float)):
         if val > 0: return 'color: #FF4B4B; font-weight: bold'
         elif val < 0: return 'color: #00C853; font-weight: bold'
+        elif val == 0: return 'color: white; opacity: 0.5' # 0 的時候顯示稍微透明的白色
     return ''
 
 # --- 5. 執行與計算 ---
@@ -240,7 +255,7 @@ col5.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
 st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。")
 st.divider()
 
-# --- 7. 圖表與詳細表格 (修改重點在此) ---
+# --- 7. 圖表與詳細表格 ---
 col_chart, col_table = st.columns([0.35, 0.65])
 
 with col_chart:
@@ -256,9 +271,8 @@ with col_chart:
     st.plotly_chart(fig, use_container_width=True)
 
 with col_table:
-    st.subheader("📋 持股與加密貨幣詳細行情")
+    st.subheader("📋 持股與幣圈詳細行情")
     
-    # 在這裡加入了 '市值' 欄位
     display_df = df[['代號', '類型', '現價', '漲跌', '幅度%', '市值', '佔比%', '今日損益', '總報酬%', '總損益']].copy()
     
     styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']) \
@@ -266,7 +280,7 @@ with col_table:
             '現價': '{:.2f}',
             '漲跌': '{:+.2f}',
             '幅度%': '{:+.2f}%',
-            '市值': '${:,.0f}',  # 格式化市值
+            '市值': '${:,.0f}',
             '今日損益': '${:,.0f}',
             '佔比%': '{:.1f}%',        
             '總報酬%': '{:+.2f}%',
