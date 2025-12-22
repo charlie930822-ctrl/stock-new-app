@@ -10,22 +10,24 @@ from datetime import datetime
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
 st.title("💰 媽媽狩獵者 的資產儀表板")
 
-# --- [新增功能] 讀取與寫入設定檔 (含加密貨幣) ---
+# --- [新增功能] 讀取與寫入設定檔 (含加密貨幣成本) ---
 DATA_FILE = "cash_data.json"
 
 def load_settings():
-    """從檔案讀取設定(現金+加密貨幣)，如果檔案不存在則回傳預設值"""
+    """從檔案讀取設定，如果檔案不存在則回傳預設值"""
     default_data = {
         "twd": 50000, 
         "usd": 1000,
-        "btc": 0.0,
-        "eth": 0.0,
-        "sol": 0.0
+        # 顆數
+        "btc": 0.0, "eth": 0.0, "sol": 0.0,
+        # [新增] 成本價 (USD)
+        "btc_cost": 0.0, "eth_cost": 0.0, "sol_cost": 0.0
     }
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
                 saved = json.load(f)
+                # 合併預設值 (確保新欄位 cost 能被讀入)
                 return {**default_data, **saved}
         except:
             pass
@@ -62,29 +64,48 @@ st.sidebar.subheader("💵 法幣現金")
 cash_twd = st.sidebar.number_input("台幣 (TWD)", value=float(saved_data["twd"]), step=10000.0)
 cash_usd = st.sidebar.number_input("美金 (USD)", value=float(saved_data["usd"]), step=100.0)
 
-st.sidebar.subheader("🪙 加密貨幣 (顆數)")
-btc_qty = st.sidebar.number_input("比特幣 (BTC)", value=float(saved_data["btc"]), step=0.001, format="%.4f")
-eth_qty = st.sidebar.number_input("以太幣 (ETH)", value=float(saved_data["eth"]), step=0.01, format="%.4f")
-sol_qty = st.sidebar.number_input("Solana (SOL)", value=float(saved_data["sol"]), step=0.1, format="%.2f")
+st.sidebar.markdown("---")
+st.sidebar.subheader("🪙 加密貨幣設定")
 
+# 使用 Expander 讓介面整潔一點，或直接顯示
+# 這裡我把「顆數」跟「成本」做在一起
+st.sidebar.caption("請輸入持有數量與平均成本(USD)")
+
+# BTC
+c1, c2 = st.sidebar.columns(2)
+btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.001, format="%.4f")
+btc_cost = c2.number_input("BTC 均價(U)", value=float(saved_data["btc_cost"]), step=100.0, format="%.2f")
+
+# ETH
+c3, c4 = st.sidebar.columns(2)
+eth_qty = c3.number_input("ETH 顆數", value=float(saved_data["eth"]), step=0.01, format="%.4f")
+eth_cost = c4.number_input("ETH 均價(U)", value=float(saved_data["eth_cost"]), step=10.0, format="%.2f")
+
+# SOL
+c5, c6 = st.sidebar.columns(2)
+sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.1, format="%.2f")
+sol_cost = c6.number_input("SOL 均價(U)", value=float(saved_data["sol_cost"]), step=1.0, format="%.2f")
+
+# 存檔檢查
 current_data = {
     "twd": cash_twd, "usd": cash_usd,
-    "btc": btc_qty, "eth": eth_qty, "sol": sol_qty
+    "btc": btc_qty, "btc_cost": btc_cost,
+    "eth": eth_qty, "eth_cost": eth_cost,
+    "sol": sol_qty, "sol_cost": sol_cost
 }
 if current_data != saved_data:
     save_settings(current_data)
 
 # --- 3. 核心計算函數 ---
 @st.cache_data(ttl=300) 
-def get_data_and_calculate(btc_q, eth_q, sol_q):
+def get_data_and_calculate(btc_d, eth_d, sol_d):
+    # btc_d 格式: {'qty': 0.1, 'cost': 50000}
     try:
         usdtwd = yf.Ticker("USDTWD=X").history(period="1d")['Close'].iloc[-1]
     except:
         usdtwd = 32.5 
         
     data_list = []
-    
-    # 取得系統當前日期 (用於判斷是否為當日數據)
     today_date = pd.Timestamp.now().date()
 
     # 台股
@@ -123,7 +144,7 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
         except:
             pass
 
-    # 美股 (修改重點區)
+    # 美股
     for item in us_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
@@ -132,20 +153,14 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
-                
-                # [關鍵修改] 判斷這筆資料的日期是否為「今天」
-                # 因為美股在台灣週一白天時，最新資料仍是「上週五」
-                # 如果資料日期 != 今天，代表今日尚未開盤，強制將漲跌設為 0
                 data_date = hist.index[-1].date()
                 is_today_data = (data_date == today_date)
 
                 if is_today_data and len(hist) >= 2:
-                    # 如果是今天的資料 (開盤後)，正常計算漲跌
                     prev_close = hist['Close'].iloc[-2]
                     change_price = price - prev_close
                     change_pct = (change_price / prev_close) * 100
                 else:
-                    # 如果是舊資料 (尚未開盤)，顯示 0
                     change_price = 0
                     change_pct = 0
                 
@@ -160,7 +175,6 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
                     "現價": price,
                     "漲跌": change_price,        
                     "幅度%": change_pct,
-                    # 今日損益會因為 change_price 為 0 而變為 0
                     "今日損益": (change_price * item['shares']) * usdtwd,
                     "市值": market_val_usd * usdtwd,
                     "總損益": profit_usd * usdtwd,
@@ -169,11 +183,11 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
         except:
             pass
 
-    # 加密貨幣 (維持不變，因為它是 24 小時交易)
+    # 加密貨幣 (計算損益邏輯更新)
     crypto_map = {
-        'BTC-USD': {'name': 'BTC', 'qty': btc_q},
-        'ETH-USD': {'name': 'ETH', 'qty': eth_q},
-        'SOL-USD': {'name': 'SOL', 'qty': sol_q}
+        'BTC-USD': {'name': 'BTC', 'qty': btc_d['qty'], 'cost': btc_d['cost']},
+        'ETH-USD': {'name': 'ETH', 'qty': eth_d['qty'], 'cost': eth_d['cost']},
+        'SOL-USD': {'name': 'SOL', 'qty': sol_d['qty'], 'cost': sol_d['cost']}
     }
     
     for code, info in crypto_map.items():
@@ -193,7 +207,14 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
                         change_p = 0
                         change_pct = 0
                     
+                    # 計算市值與成本 (美金)
                     market_val_usd = price * info['qty']
+                    cost_val_usd = info['cost'] * info['qty']
+                    
+                    # 計算損益
+                    profit_usd = market_val_usd - cost_val_usd
+                    # 避免除以 0
+                    profit_pct = (profit_usd / cost_val_usd * 100) if cost_val_usd > 0 else 0
                     
                     data_list.append({
                         "代號": info['name'],
@@ -203,8 +224,8 @@ def get_data_and_calculate(btc_q, eth_q, sol_q):
                         "幅度%": change_pct,
                         "今日損益": (change_p * info['qty']) * usdtwd,
                         "市值": market_val_usd * usdtwd,
-                        "總損益": 0,
-                        "總報酬%": 0
+                        "總損益": profit_usd * usdtwd, # 換算回台幣顯示
+                        "總報酬%": profit_pct
                     })
             except:
                 pass
@@ -216,12 +237,18 @@ def color_tw_style(val):
     if isinstance(val, (int, float)):
         if val > 0: return 'color: #FF4B4B; font-weight: bold'
         elif val < 0: return 'color: #00C853; font-weight: bold'
-        elif val == 0: return 'color: white; opacity: 0.5' # 0 的時候顯示稍微透明的白色
+        elif val == 0: return 'color: white; opacity: 0.5'
     return ''
 
 # --- 5. 執行與計算 ---
 st.write("🔄 正在取得最新報價 (含加密貨幣)...")
-df, rate = get_data_and_calculate(btc_qty, eth_qty, sol_qty)
+
+# 包裝一下參數傳進去
+btc_data = {'qty': btc_qty, 'cost': btc_cost}
+eth_data = {'qty': eth_qty, 'cost': eth_cost}
+sol_data = {'qty': sol_qty, 'cost': sol_cost}
+
+df, rate = get_data_and_calculate(btc_data, eth_data, sol_data)
 
 crypto_df = df[df['類型'] == 'Crypto']
 stock_df = df[df['類型'] != 'Crypto']
@@ -233,11 +260,12 @@ cash_total_val = cash_twd + (cash_usd * rate)
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 total_profit = df['總損益'].sum() 
 
+# 投資報酬率 = 總獲利 / 總成本
+# 總成本 = (總資產 - 總獲利 - 現金)
 total_return_rate = 0 
-if stock_total_val != 0: 
-    invested_capital = (stock_total_val + crypto_total_val) - total_profit
-    if invested_capital > 0:
-        total_return_rate = (total_profit / invested_capital) * 100
+invested_capital = (stock_total_val + crypto_total_val) - total_profit
+if invested_capital > 0:
+    total_return_rate = (total_profit / invested_capital) * 100
 
 today_change_total = df['今日損益'].sum()
 today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 0 else 0
