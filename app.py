@@ -277,6 +277,7 @@ with col_table:
         styled_df,
         height=500,
         use_container_width=True,
+        hide_index=True,
         column_config={
             "代號": st.column_config.TextColumn("代號"),
             "佔比%": st.column_config.ProgressColumn(
