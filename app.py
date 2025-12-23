@@ -47,7 +47,7 @@ tw_portfolio = [
 us_portfolio = [
     {'code': 'AVGO', 'shares': 1, 'cost': 341.00},
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},  # 新增 GRAB
-    {'code': 'NFLX', 'shares': 10.33591, 'cost': 96999.75007},
+    {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93633, 'cost': 173.48509},
     {'code': 'SGOV', 'shares': 16.00807, 'cost': 100.28004}, # 股數已修正
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
