@@ -315,7 +315,7 @@ with col_table:
         hide_index=True,
         column_config={
             "代號": st.column_config.TextColumn("代號"),
-            "現價": st.column_config.NumberColumn("現價 (USD)"),
+            "現價": st.column_config.NumberColumn("現價 "),
             "佔比%": st.column_config.ProgressColumn(
                 "佔總資產 %", 
                 format="%.1f%%", 
