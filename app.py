@@ -45,14 +45,16 @@ tw_portfolio = [
     {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
 ]
 
+# [更新] 根據你的最新截圖填入精確數據
 us_portfolio = [
     {'code': 'AVGO', 'shares': 1, 'cost': 341.00},
-    {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75},
-    {'code': 'NVDA', 'shares': 8.93633, 'cost': 173.49},
-    {'code': 'SGOV', 'shares': 20.99361, 'cost': 100.28},
-    {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38},
+    {'code': 'GRAB', 'shares': 50, 'cost': 5.125},  # 新增 GRAB
+    {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
+    {'code': 'NVDA', 'shares': 8.93633, 'cost': 173.48509},
+    {'code': 'SGOV', 'shares': 16.00807, 'cost': 100.28004}, # 更新股數
+    {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
     {'code': 'SOUN', 'shares': 5, 'cost': 10.93},
-    {'code': 'TSLA', 'shares': 2.55341, 'cost': 399.47},
+    {'code': 'TSLA', 'shares': 2.55341, 'cost': 399.46581},
 ]
 
 # --- 2. 側邊欄：資產設定 ---
@@ -280,59 +282,4 @@ df['佔比%'] = (df['市值'] / total_assets) * 100
 # --- 6. 顯示上方大數據 ---
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("🏆 總資產 (TWD)", f"${total_assets:,.0f}")
-col2.metric("💰 總獲利 (TWD)", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
-col3.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
-col4.metric("💵 現金部位 (TWD)", f"${cash_total_val:,.0f}")
-col5.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
-
-st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。")
-st.divider()
-
-# --- 7. 圖表與詳細表格 ---
-col_chart, col_table = st.columns([0.35, 0.65])
-
-with col_chart:
-    st.subheader("📊 資產配置")
-    chart_df = df[['代號', '市值']].copy()
-    if cash_total_val > 0:
-        new_row = pd.DataFrame([{'代號': '現金 (Cash)', '市值': cash_total_val}])
-        chart_df = pd.concat([chart_df, new_row], ignore_index=True)
-    
-    fig = px.pie(chart_df, values='市值', names='代號', hole=0.4, 
-                 title=f"總資產: ${total_assets:,.0f}")
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    st.plotly_chart(fig, use_container_width=True)
-
-with col_table:
-    st.subheader("📋 持股與幣圈詳細行情")
-    
-    display_df = df[['代號', '類型', '現價', '漲跌', '幅度%', '市值', '佔比%', '今日損益', '總報酬%', '總損益']].copy()
-    
-    styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']) \
-        .format({
-            '現價': '{:.2f}', # 這裡是美金
-            '漲跌': '{:+.2f}',
-            '幅度%': '{:+.2f}%',
-            '市值': '${:,.0f}',
-            '今日損益': '${:,.0f}',
-            '佔比%': '{:.1f}%',        
-            '總報酬%': '{:+.2f}%',
-            '總損益': '${:,.0f}' # 這裡是台幣
-        })
-
-    st.dataframe(
-        styled_df,
-        height=500,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "代號": st.column_config.TextColumn("代號"),
-            "現價": st.column_config.NumberColumn("現價 (USD)"), # 標註清楚是美金
-            "佔比%": st.column_config.ProgressColumn(
-                "佔總資產 %", 
-                format="%.1f%%", 
-                min_value=0, 
-                max_value=100
-            ),
-        }
-    )
+col2.metric("💰 總獲利 (TWD)", f"${total_profit:,.0f}", delta=f"{total_return_rate
