@@ -94,7 +94,7 @@ if current_data != saved_data:
     save_settings(current_data)
 
 # --- 3. 核心計算函數 ---
-@st.cache_data(ttl=60) # 改為 60秒更新一次，確保更換代碼後能快速反應
+@st.cache_data(ttl=5) # 改為 60秒更新一次，確保更換代碼後能快速反應
 def get_data_and_calculate(btc_d, eth_d, sol_d, _tw_list, _us_list):
     # 將股票列表傳入參數，確保快取會因為列表改變而更新
     try:
