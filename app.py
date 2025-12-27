@@ -49,7 +49,7 @@ us_portfolio = [
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},  # 新增 GRAB
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93633, 'cost': 173.48509},
-    {'code': 'SGOV', 'shares': 16.00807, 'cost': 100.28004}, # 股數已修正
+    {'code': 'SGOV', 'shares': 18.44337	, 'cost': 100.28536}, # 股數已修正
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
     {'code': 'SOUN', 'shares': 5, 'cost': 10.93},
     {'code': 'TSLA', 'shares': 2.55341, 'cost': 399.46581},
