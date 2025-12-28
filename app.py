@@ -8,17 +8,20 @@ from datetime import datetime
 
 # --- 設定網頁標題與版面 ---
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
-st.title("💰 媽媽狩獵者的資產儀表板")
+st.title("💰 媽媽狩獵者 的資產儀表板")
 
-# --- [設定檔功能] 讀取與寫入 (紀錄台幣成本) ---
+# --- [功能更新] 讀取與寫入設定檔 ---
 DATA_FILE = "cash_data.json"
 
 def load_settings():
     """從檔案讀取設定，如果檔案不存在則回傳預設值"""
     default_data = {
-        "twd": 50000, 
+        # 銀行與實體現金
+        "twd_bank": 50000, 
+        "twd_physical": 0,
         "usd": 1000,
-        # 預設持倉與台幣成本
+        
+        # 加密貨幣設定
         "btc": 0.0, "btc_cost_twd": 2911966.1,
         "eth": 0.0, "eth_cost_twd": 93579.1,
         "sol": 0.0, "sol_cost_twd": 3922.8
@@ -27,6 +30,11 @@ def load_settings():
         try:
             with open(DATA_FILE, "r") as f:
                 saved = json.load(f)
+                
+                # [資料遷移] 如果是舊檔案只有 'twd'，把它移到 'twd_bank'
+                if "twd" in saved and "twd_bank" not in saved:
+                    saved["twd_bank"] = saved["twd"]
+                
                 return {**default_data, **saved}
         except:
             pass
@@ -37,7 +45,7 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 (已根據您的最新截圖 image_0272d6.png 更新) ---
+# --- 1. 設定持股資料 ---
 tw_portfolio = [
     {'code': '2317.TW', 'name': '鴻海', 'shares': 342, 'cost': 166.84},
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
@@ -46,13 +54,12 @@ tw_portfolio = [
 
 us_portfolio = [
     {'code': 'AVGO', 'shares': 1, 'cost': 341.00},
-    {'code': 'GRAB', 'shares': 50, 'cost': 5.125},  # 新增 GRAB
-    {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
-    {'code': 'NVDA', 'shares': 8.93633, 'cost': 173.48509},
-    {'code': 'SGOV', 'shares': 18.44337, 'cost': 100.28536}, # 股數已修正
-    {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
+    {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75},
+    {'code': 'NVDA', 'shares': 8.93633, 'cost': 173.49},
+    {'code': 'SGOV', 'shares': 20.99361, 'cost': 100.28},
+    {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38},
     {'code': 'SOUN', 'shares': 5, 'cost': 10.93},
-    {'code': 'TSLA', 'shares': 2.55341, 'cost': 399.46581},
+    {'code': 'TSLA', 'shares': 2.55341, 'cost': 399.47},
 ]
 
 # --- 2. 側邊欄：資產設定 ---
@@ -60,32 +67,37 @@ st.sidebar.header("⚙️ 資產設定")
 
 saved_data = load_settings()
 
+# 法幣現金區塊
 st.sidebar.subheader("💵 法幣現金")
-cash_twd = st.sidebar.number_input("台幣 (TWD)", value=float(saved_data["twd"]), step=10000.0)
-cash_usd = st.sidebar.number_input("美金 (USD)", value=float(saved_data["usd"]), step=100.0)
+cash_twd_bank = st.sidebar.number_input("🏦 銀行存款 (TWD)", value=float(saved_data.get("twd_bank", 50000)), step=10000.0)
+cash_twd_physical = st.sidebar.number_input("🧧 實體現鈔 (TWD)", value=float(saved_data.get("twd_physical", 0)), step=1000.0)
+cash_usd = st.sidebar.number_input("🇺🇸 美金 (USD)", value=float(saved_data["usd"]), step=100.0)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🪙 加密貨幣設定")
 st.sidebar.caption("請輸入持有數量與 **台幣平均成本**")
 
+# [修改重點] 加密貨幣輸入精度調整為 8 位小數 (%.8f)
 # BTC
 c1, c2 = st.sidebar.columns(2)
-btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.001, format="%.4f")
+btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.00000001, format="%.8f")
 btc_cost_twd = c2.number_input("BTC 均價(NT)", value=float(saved_data.get("btc_cost_twd", 2911966.1)), step=1000.0, format="%.1f")
 
 # ETH
 c3, c4 = st.sidebar.columns(2)
-eth_qty = c3.number_input("ETH 顆數", value=float(saved_data["eth"]), step=0.01, format="%.4f")
+eth_qty = c3.number_input("ETH 顆數", value=float(saved_data["eth"]), step=0.00000001, format="%.8f")
 eth_cost_twd = c4.number_input("ETH 均價(NT)", value=float(saved_data.get("eth_cost_twd", 93579.1)), step=100.0, format="%.1f")
 
 # SOL
 c5, c6 = st.sidebar.columns(2)
-sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.1, format="%.2f")
+sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.00000001, format="%.8f")
 sol_cost_twd = c6.number_input("SOL 均價(NT)", value=float(saved_data.get("sol_cost_twd", 3922.8)), step=10.0, format="%.1f")
 
 # 存檔
 current_data = {
-    "twd": cash_twd, "usd": cash_usd,
+    "twd_bank": cash_twd_bank, 
+    "twd_physical": cash_twd_physical,
+    "usd": cash_usd,
     "btc": btc_qty, "btc_cost_twd": btc_cost_twd,
     "eth": eth_qty, "eth_cost_twd": eth_cost_twd,
     "sol": sol_qty, "sol_cost_twd": sol_cost_twd
@@ -94,9 +106,8 @@ if current_data != saved_data:
     save_settings(current_data)
 
 # --- 3. 核心計算函數 ---
-@st.cache_data(ttl=5) # 改為 60秒更新一次，確保更換代碼後能快速反應
-def get_data_and_calculate(btc_d, eth_d, sol_d, _tw_list, _us_list):
-    # 將股票列表傳入參數，確保快取會因為列表改變而更新
+@st.cache_data(ttl=30) 
+def get_data_and_calculate(btc_d, eth_d, sol_d):
     try:
         usdtwd = yf.Ticker("USDTWD=X").history(period="1d")['Close'].iloc[-1]
     except:
@@ -106,7 +117,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d, _tw_list, _us_list):
     today_date = pd.Timestamp.now().date()
 
     # 台股
-    for item in _tw_list:
+    for item in tw_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
             hist = ticker.history(period="5d")
@@ -142,7 +153,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d, _tw_list, _us_list):
             pass
 
     # 美股
-    for item in _us_list:
+    for item in us_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
             hist = ticker.history(period="5d")
@@ -242,15 +253,17 @@ btc_data = {'qty': btc_qty, 'cost_twd': btc_cost_twd}
 eth_data = {'qty': eth_qty, 'cost_twd': eth_cost_twd}
 sol_data = {'qty': sol_qty, 'cost_twd': sol_cost_twd}
 
-# [重要] 將列表傳入函數以觸發快取更新
-df, rate = get_data_and_calculate(btc_data, eth_data, sol_data, tw_portfolio, us_portfolio)
+df, rate = get_data_and_calculate(btc_data, eth_data, sol_data)
 
 crypto_df = df[df['類型'] == 'Crypto']
 stock_df = df[df['類型'] != 'Crypto']
 
 crypto_total_val = crypto_df['市值'].sum() if not crypto_df.empty else 0
 stock_total_val = stock_df['市值'].sum() if not stock_df.empty else 0
-cash_total_val = cash_twd + (cash_usd * rate)
+
+# 計算總現金 (銀行 + 實體 + 美金)
+total_cash_twd_only = cash_twd_bank + cash_twd_physical
+cash_total_val = total_cash_twd_only + (cash_usd * rate)
 
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 total_profit = df['總損益'].sum() 
@@ -282,8 +295,17 @@ col_chart, col_table = st.columns([0.35, 0.65])
 with col_chart:
     st.subheader("📊 資產配置")
     chart_df = df[['代號', '市值']].copy()
-    if cash_total_val > 0:
-        new_row = pd.DataFrame([{'代號': '現金 (Cash)', '市值': cash_total_val}])
+    
+    if cash_twd_bank > 0:
+        new_row = pd.DataFrame([{'代號': '銀行存款', '市值': cash_twd_bank}])
+        chart_df = pd.concat([chart_df, new_row], ignore_index=True)
+        
+    if cash_twd_physical > 0:
+        new_row = pd.DataFrame([{'代號': '實體現鈔', '市值': cash_twd_physical}])
+        chart_df = pd.concat([chart_df, new_row], ignore_index=True)
+        
+    if cash_usd > 0:
+        new_row = pd.DataFrame([{'代號': '美金存款', '市值': cash_usd * rate}])
         chart_df = pd.concat([chart_df, new_row], ignore_index=True)
     
     fig = px.pie(chart_df, values='市值', names='代號', hole=0.4, 
@@ -298,14 +320,14 @@ with col_table:
     
     styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']) \
         .format({
-            '現價': '{:.2f}',
+            '現價': '{:.2f}', 
             '漲跌': '{:+.2f}',
             '幅度%': '{:+.2f}%',
             '市值': '${:,.0f}',
             '今日損益': '${:,.0f}',
             '佔比%': '{:.1f}%',        
             '總報酬%': '{:+.2f}%',
-            '總損益': '${:,.0f}'
+            '總損益': '${:,.0f}' 
         })
 
     st.dataframe(
@@ -315,7 +337,7 @@ with col_table:
         hide_index=True,
         column_config={
             "代號": st.column_config.TextColumn("代號"),
-            "現價": st.column_config.NumberColumn("現價 "),
+            "現價": st.column_config.NumberColumn("現價 (USD)"), 
             "佔比%": st.column_config.ProgressColumn(
                 "佔總資產 %", 
                 format="%.1f%%", 
