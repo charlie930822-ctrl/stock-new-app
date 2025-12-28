@@ -71,7 +71,7 @@ saved_data = load_settings()
 st.sidebar.subheader("💵 法幣現金")
 cash_twd_bank = st.sidebar.number_input("🏦 銀行存款 (TWD)", value=float(saved_data.get("twd_bank", 50000)), step=10000.0)
 cash_twd_physical = st.sidebar.number_input("🧧 實體現鈔 (TWD)", value=float(saved_data.get("twd_physical", 0)), step=1000.0)
-cash_usd = st.sidebar.number_input("Firstrade內美金 (USD)", value=float(saved_data["usd"]), step=100.0)
+cash_usd = st.sidebar.number_input(" Firstrade內美金 (USD)", value=float(saved_data["usd"]), step=100.0)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🪙 加密貨幣設定")
