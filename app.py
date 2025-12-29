@@ -10,7 +10,7 @@ from datetime import datetime
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
 st.title("💰 媽媽狩獵者 的資產儀表板")
 
-# --- [功能更新] 讀取與寫入設定檔 ---
+# --- [功能] 讀取與寫入設定檔 ---
 DATA_FILE = "cash_data.json"
 
 def load_settings():
@@ -22,19 +22,16 @@ def load_settings():
         "usd": 1000,
         
         # 加密貨幣設定
-        "btc": 0.00282326, "btc_cost_twd": 2911966.1,
-        "eth": 0.05362024, "eth_cost_twd": 93579.1,
-        "sol": 1.27918648, "sol_cost_twd": 3922.8
+        "btc": 0.0, "btc_cost_twd": 2911966.1,
+        "eth": 0.0, "eth_cost_twd": 93579.1,
+        "sol": 0.0, "sol_cost_twd": 3922.8
     }
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
                 saved = json.load(f)
-                
-                # [資料遷移] 如果是舊檔案只有 'twd'，把它移到 'twd_bank'
                 if "twd" in saved and "twd_bank" not in saved:
                     saved["twd_bank"] = saved["twd"]
-                
                 return {**default_data, **saved}
         except:
             pass
@@ -45,21 +42,23 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 ---
+# --- 1. 設定持股資料 (台股維持不變) ---
 tw_portfolio = [
     {'code': '2317.TW', 'name': '鴻海', 'shares': 342, 'cost': 166.84},
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
     {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
 ]
 
+# --- [更新] 美股資料 (根據最新截圖數據) ---
 us_portfolio = [
     {'code': 'AVGO', 'shares': 1, 'cost': 341.00},
+    {'code': 'GRAB', 'shares': 50, 'cost': 5.125},      # 新增 (用詳細成本5.125以求精確)
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75},
-    {'code': 'NVDA', 'shares': 8.93633, 'cost': 173.49},
-    {'code': 'SGOV', 'shares': 20.99361, 'cost': 100.28},
+    {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.49}, # 微調小數點
+    {'code': 'SGOV', 'shares': 13.44337, 'cost': 100.29},# 減碼後數據
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38},
     {'code': 'SOUN', 'shares': 5, 'cost': 10.93},
-    {'code': 'TSLA', 'shares': 2.55341, 'cost': 399.47},
+    {'code': 'TSLA', 'shares': 3.55341, 'cost': 419.25}, # 加碼後數據
 ]
 
 # --- 2. 側邊欄：資產設定 ---
@@ -71,13 +70,12 @@ saved_data = load_settings()
 st.sidebar.subheader("💵 法幣現金")
 cash_twd_bank = st.sidebar.number_input("🏦 銀行存款 (TWD)", value=float(saved_data.get("twd_bank", 50000)), step=10000.0)
 cash_twd_physical = st.sidebar.number_input("🧧 實體現鈔 (TWD)", value=float(saved_data.get("twd_physical", 0)), step=1000.0)
-cash_usd = st.sidebar.number_input(" Firstrade內美金 (USD)", value=float(saved_data["usd"]), step=100.0)
+cash_usd = st.sidebar.number_input("🇺🇸 美金 (USD)", value=float(saved_data["usd"]), step=100.0)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🪙 加密貨幣設定")
 st.sidebar.caption("請輸入持有數量與 **台幣平均成本**")
 
-# [修改重點] 加密貨幣輸入精度調整為 8 位小數 (%.8f)
 # BTC
 c1, c2 = st.sidebar.columns(2)
 btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.00000001, format="%.8f")
