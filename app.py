@@ -22,9 +22,9 @@ def load_settings():
         "usd": 1000,
         
         # 加密貨幣設定
-        "btc": 0.0, "btc_cost_twd": 2911966.1,
-        "eth": 0.0, "eth_cost_twd": 93579.1,
-        "sol": 0.0, "sol_cost_twd": 3922.8
+        "btc": 0.00282327, "btc_cost_twd": 2911966.1,
+        "eth": 0.05362097, "eth_cost_twd": 93579.1,
+        "sol": 1.27918600, "sol_cost_twd": 3922.8
     }
     if os.path.exists(DATA_FILE):
         try:
