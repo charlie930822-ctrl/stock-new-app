@@ -43,16 +43,14 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 (台股維持不變) ---
+# --- 1. 設定持股資料 ---
 tw_portfolio = [
     {'code': '2317.TW', 'name': '鴻海', 'shares': 342, 'cost': 166.84},
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
     {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
 ]
 
-# --- [更新] 美股資料 (已移除 AVGO，其他維持精確數據) ---
 us_portfolio = [
-    # AVGO 已移除
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.48549},
@@ -152,7 +150,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         except:
             pass
 
-    # 美股 (無日期限制，隨時顯示最新波動)
+    # 美股
     for item in us_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
@@ -263,6 +261,9 @@ stock_total_val = stock_df['市值'].sum() if not stock_df.empty else 0
 total_cash_twd_only = cash_twd_bank + cash_twd_physical + cash_twd_max
 cash_total_val = total_cash_twd_only + (cash_usd * rate)
 
+# [新增] 計算「投資總資產」 = 股票 + 加密貨幣 (不含現金)
+invested_assets = stock_total_val + crypto_total_val
+
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 total_profit = df['總損益'].sum() 
 
@@ -276,13 +277,16 @@ today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 
 
 df['佔比%'] = (df['市值'] / total_assets) * 100
 
-# --- 6. 顯示上方大數據 ---
-col1, col2, col3, col4, col5 = st.columns(5)
+# --- 6. 顯示上方大數據 (改為 6 欄) ---
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+
 col1.metric("🏆 總資產 (TWD)", f"${total_assets:,.0f}")
-col2.metric("💰 總獲利 (TWD)", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
-col3.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
-col4.metric("💵 現金部位 (TWD)", f"${cash_total_val:,.0f}")
-col5.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
+# [新增] 投資總資產欄位
+col2.metric("📈 投資總資產 (TWD)", f"${invested_assets:,.0f}")
+col3.metric("💰 總獲利 (TWD)", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
+col4.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
+col5.metric("💵 現金部位 (TWD)", f"${cash_total_val:,.0f}")
+col6.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
 
 st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。")
 st.divider()
