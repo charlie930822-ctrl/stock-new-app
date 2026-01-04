@@ -50,9 +50,9 @@ tw_portfolio = [
     {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
 ]
 
-# --- [更新] 美股資料 (維持您最新的精確持倉) ---
+# --- [更新] 美股資料 (已移除 AVGO，其他維持精確數據) ---
 us_portfolio = [
-    {'code': 'AVGO', 'shares': 1, 'cost': 341.00},
+    # AVGO 已移除
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.48549},
@@ -152,7 +152,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         except:
             pass
 
-    # 美股 (修改重點：移除 is_today_data 判斷，直接抓最新兩筆比對)
+    # 美股 (無日期限制，隨時顯示最新波動)
     for item in us_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
@@ -160,10 +160,8 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             hist = hist.dropna()
             
             if not hist.empty:
-                # 抓最後一筆 (如果是週末，這就是週五收盤價)
                 price = hist['Close'].iloc[-1]
                 
-                # 直接跟前一筆交易日比較
                 if len(hist) >= 2:
                     prev_close = hist['Close'].iloc[-2]
                     change_price = price - prev_close
