@@ -16,10 +16,10 @@ DATA_FILE = "cash_data.json"
 def load_settings():
     """從檔案讀取設定，如果檔案不存在則回傳預設值"""
     default_data = {
-        # 銀行、實體、以及 [新增] MAX交易所現金
+        # 銀行、實體、以及 MAX交易所現金
         "twd_bank": 50000, 
         "twd_physical": 0,
-        "twd_max": 0,  # 新增欄位
+        "twd_max": 0,
         "usd": 1000,
         
         # 加密貨幣設定
@@ -31,7 +31,6 @@ def load_settings():
         try:
             with open(DATA_FILE, "r") as f:
                 saved = json.load(f)
-                # 資料遷移：確保舊檔案讀取時不會報錯，並補上新欄位
                 if "twd" in saved and "twd_bank" not in saved:
                     saved["twd_bank"] = saved["twd"]
                 return {**default_data, **saved}
@@ -51,7 +50,7 @@ tw_portfolio = [
     {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
 ]
 
-# --- [更新] 美股資料 (根據最新截圖數據，精確到小數點) ---
+# --- [更新] 美股資料 (維持您最新的精確持倉) ---
 us_portfolio = [
     {'code': 'AVGO', 'shares': 1, 'cost': 341.00},
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
@@ -60,7 +59,7 @@ us_portfolio = [
     {'code': 'SGOV', 'shares': 13.44337, 'cost': 100.28736},
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
     {'code': 'SOUN', 'shares': 5, 'cost': 10.93},
-    {'code': 'TSLA', 'shares': 4.42199, 'cost': 423.40823}, # 最新加碼數據
+    {'code': 'TSLA', 'shares': 4.42199, 'cost': 423.40823}, 
 ]
 
 # --- 2. 側邊欄：資產設定 ---
@@ -72,9 +71,7 @@ saved_data = load_settings()
 st.sidebar.subheader("💵 法幣現金")
 cash_twd_bank = st.sidebar.number_input("🏦 銀行存款 (TWD)", value=float(saved_data.get("twd_bank", 50000)), step=10000.0)
 cash_twd_physical = st.sidebar.number_input("🧧 實體現鈔 (TWD)", value=float(saved_data.get("twd_physical", 0)), step=1000.0)
-# [新增] MAX 交易所現金
 cash_twd_max = st.sidebar.number_input("🟣 MAX 交易所 (TWD)", value=float(saved_data.get("twd_max", 0)), step=1000.0)
-
 cash_usd = st.sidebar.number_input("🇺🇸 美金 (USD)", value=float(saved_data["usd"]), step=100.0)
 
 st.sidebar.markdown("---")
@@ -100,7 +97,7 @@ sol_cost_twd = c6.number_input("SOL 均價(NT)", value=float(saved_data.get("sol
 current_data = {
     "twd_bank": cash_twd_bank, 
     "twd_physical": cash_twd_physical,
-    "twd_max": cash_twd_max, # 存入新欄位
+    "twd_max": cash_twd_max,
     "usd": cash_usd,
     "btc": btc_qty, "btc_cost_twd": btc_cost_twd,
     "eth": eth_qty, "eth_cost_twd": eth_cost_twd,
@@ -118,8 +115,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         usdtwd = 32.5 
         
     data_list = []
-    today_date = pd.Timestamp.now().date()
-
+    
     # 台股
     for item in tw_portfolio:
         try:
@@ -156,7 +152,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         except:
             pass
 
-    # 美股
+    # 美股 (修改重點：移除 is_today_data 判斷，直接抓最新兩筆比對)
     for item in us_portfolio:
         try:
             ticker = yf.Ticker(item['code'])
@@ -164,11 +160,11 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             hist = hist.dropna()
             
             if not hist.empty:
+                # 抓最後一筆 (如果是週末，這就是週五收盤價)
                 price = hist['Close'].iloc[-1]
-                data_date = hist.index[-1].date()
-                is_today_data = (data_date == today_date)
-
-                if is_today_data and len(hist) >= 2:
+                
+                # 直接跟前一筆交易日比較
+                if len(hist) >= 2:
                     prev_close = hist['Close'].iloc[-2]
                     change_price = price - prev_close
                     change_pct = (change_price / prev_close) * 100
@@ -265,7 +261,7 @@ stock_df = df[df['類型'] != 'Crypto']
 crypto_total_val = crypto_df['市值'].sum() if not crypto_df.empty else 0
 stock_total_val = stock_df['市值'].sum() if not stock_df.empty else 0
 
-# [修改] 計算總現金 (銀行 + 實體 + MAX + 美金)
+# 計算總現金
 total_cash_twd_only = cash_twd_bank + cash_twd_physical + cash_twd_max
 cash_total_val = total_cash_twd_only + (cash_usd * rate)
 
@@ -300,7 +296,7 @@ with col_chart:
     st.subheader("📊 資產配置")
     chart_df = df[['代號', '市值']].copy()
     
-    # [修改] 將現金細項加入圓餅圖
+    # 顯示現金細項
     if cash_twd_bank > 0:
         new_row = pd.DataFrame([{'代號': '銀行存款', '市值': cash_twd_bank}])
         chart_df = pd.concat([chart_df, new_row], ignore_index=True)
