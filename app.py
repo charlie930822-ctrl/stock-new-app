@@ -22,10 +22,10 @@ def load_settings():
         "twd_max": 0,
         "usd": 1000,
         
-        # 加密貨幣設定
-        "btc": 0.0, "btc_cost_twd": 2911966.1,
-        "eth": 0.0, "eth_cost_twd": 93579.1,
-        "sol": 0.0, "sol_cost_twd": 3922.8
+        # 加密貨幣設定 (改回紀錄 USD 成本)
+        "btc": 0.0, "btc_cost": 0.0,
+        "eth": 0.0, "eth_cost": 0.0,
+        "sol": 0.0, "sol_cost": 0.0
     }
     if os.path.exists(DATA_FILE):
         try:
@@ -43,13 +43,14 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 ---
+# --- 1. 設定持股資料 (台股維持不變) ---
 tw_portfolio = [
     {'code': '2317.TW', 'name': '鴻海', 'shares': 342, 'cost': 166.84},
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
     {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
 ]
 
+# --- [更新] 美股資料 (AVGO 已移除，維持精確數據) ---
 us_portfolio = [
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
@@ -74,22 +75,23 @@ cash_usd = st.sidebar.number_input("🇺🇸 美金 (USD)", value=float(saved_da
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🪙 加密貨幣設定")
-st.sidebar.caption("請輸入持有數量與 **台幣平均成本**")
+st.sidebar.caption("請輸入持有數量與 **美金平均成本**")
 
+# [修改] 改回輸入美金成本 (key: *_cost)
 # BTC
 c1, c2 = st.sidebar.columns(2)
 btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.00000001, format="%.8f")
-btc_cost_twd = c2.number_input("BTC 均價(NT)", value=float(saved_data.get("btc_cost_twd", 2911966.1)), step=1000.0, format="%.1f")
+btc_cost = c2.number_input("BTC 均價(USD)", value=float(saved_data.get("btc_cost", 0.0)), step=100.0, format="%.2f")
 
 # ETH
 c3, c4 = st.sidebar.columns(2)
 eth_qty = c3.number_input("ETH 顆數", value=float(saved_data["eth"]), step=0.00000001, format="%.8f")
-eth_cost_twd = c4.number_input("ETH 均價(NT)", value=float(saved_data.get("eth_cost_twd", 93579.1)), step=100.0, format="%.1f")
+eth_cost = c4.number_input("ETH 均價(USD)", value=float(saved_data.get("eth_cost", 0.0)), step=10.0, format="%.2f")
 
 # SOL
 c5, c6 = st.sidebar.columns(2)
 sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.00000001, format="%.8f")
-sol_cost_twd = c6.number_input("SOL 均價(NT)", value=float(saved_data.get("sol_cost_twd", 3922.8)), step=10.0, format="%.1f")
+sol_cost = c6.number_input("SOL 均價(USD)", value=float(saved_data.get("sol_cost", 0.0)), step=1.0, format="%.2f")
 
 # 存檔
 current_data = {
@@ -97,9 +99,9 @@ current_data = {
     "twd_physical": cash_twd_physical,
     "twd_max": cash_twd_max,
     "usd": cash_usd,
-    "btc": btc_qty, "btc_cost_twd": btc_cost_twd,
-    "eth": eth_qty, "eth_cost_twd": eth_cost_twd,
-    "sol": sol_qty, "sol_cost_twd": sol_cost_twd
+    "btc": btc_qty, "btc_cost": btc_cost,
+    "eth": eth_qty, "eth_cost": eth_cost,
+    "sol": sol_qty, "sol_cost": sol_cost
 }
 if current_data != saved_data:
     save_settings(current_data)
@@ -187,11 +189,11 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         except:
             pass
 
-    # 加密貨幣
+    # 加密貨幣 (改為 USD 成本計算)
     crypto_map = {
-        'BTC-USD': {'name': 'BTC', 'qty': btc_d['qty'], 'cost_twd': btc_d['cost_twd']},
-        'ETH-USD': {'name': 'ETH', 'qty': eth_d['qty'], 'cost_twd': eth_d['cost_twd']},
-        'SOL-USD': {'name': 'SOL', 'qty': sol_d['qty'], 'cost_twd': sol_d['cost_twd']}
+        'BTC-USD': {'name': 'BTC', 'qty': btc_d['qty'], 'cost': btc_d['cost']},
+        'ETH-USD': {'name': 'ETH', 'qty': eth_d['qty'], 'cost': eth_d['cost']},
+        'SOL-USD': {'name': 'SOL', 'qty': sol_d['qty'], 'cost': sol_d['cost']}
     }
     
     for code, info in crypto_map.items():
@@ -212,11 +214,11 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                         change_usd = 0
                         change_pct = 0
                     
-                    price_twd = price_usd * usdtwd
-                    market_val_twd = price_twd * info['qty']
-                    total_cost_twd = info['cost_twd'] * info['qty']
-                    profit_twd = market_val_twd - total_cost_twd
-                    profit_pct = (profit_twd / total_cost_twd * 100) if total_cost_twd > 0 else 0
+                    # 計算邏輯：全程使用美金計算損益，最後再換算台幣顯示
+                    market_val_usd = price_usd * info['qty']
+                    cost_val_usd = info['cost'] * info['qty']
+                    profit_usd = market_val_usd - cost_val_usd
+                    profit_pct = (profit_usd / cost_val_usd * 100) if cost_val_usd > 0 else 0
                     
                     data_list.append({
                         "代號": info['name'],
@@ -225,8 +227,8 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                         "漲跌": change_usd,
                         "幅度%": change_pct,
                         "今日損益": (change_usd * info['qty']) * usdtwd,
-                        "市值": market_val_twd,
-                        "總損益": profit_twd,
+                        "市值": market_val_usd * usdtwd,
+                        "總損益": profit_usd * usdtwd, # 換算回台幣顯示
                         "總報酬%": profit_pct
                     })
             except:
@@ -245,9 +247,10 @@ def color_tw_style(val):
 # --- 5. 執行與計算 ---
 st.write("🔄 正在取得最新報價 (含加密貨幣)...")
 
-btc_data = {'qty': btc_qty, 'cost_twd': btc_cost_twd}
-eth_data = {'qty': eth_qty, 'cost_twd': eth_cost_twd}
-sol_data = {'qty': sol_qty, 'cost_twd': sol_cost_twd}
+# 傳入 USD 成本
+btc_data = {'qty': btc_qty, 'cost': btc_cost}
+eth_data = {'qty': eth_qty, 'cost': eth_cost}
+sol_data = {'qty': sol_qty, 'cost': sol_cost}
 
 df, rate = get_data_and_calculate(btc_data, eth_data, sol_data)
 
@@ -261,7 +264,7 @@ stock_total_val = stock_df['市值'].sum() if not stock_df.empty else 0
 total_cash_twd_only = cash_twd_bank + cash_twd_physical + cash_twd_max
 cash_total_val = total_cash_twd_only + (cash_usd * rate)
 
-# [新增] 計算「投資總資產」 = 股票 + 加密貨幣 (不含現金)
+# 計算投資總資產
 invested_assets = stock_total_val + crypto_total_val
 
 total_assets = stock_total_val + crypto_total_val + cash_total_val
@@ -277,11 +280,10 @@ today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 
 
 df['佔比%'] = (df['市值'] / total_assets) * 100
 
-# --- 6. 顯示上方大數據 (改為 6 欄) ---
+# --- 6. 顯示上方大數據 (6欄) ---
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 col1.metric("🏆 總資產 (TWD)", f"${total_assets:,.0f}")
-# [新增] 投資總資產欄位
 col2.metric("📈 投資總資產 (TWD)", f"${invested_assets:,.0f}")
 col3.metric("💰 總獲利 (TWD)", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
 col4.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
