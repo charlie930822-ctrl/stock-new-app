@@ -94,17 +94,12 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         
     data_list = []
     
-    # 取得現在的台灣時間
     tw_tz = pytz.timezone('Asia/Taipei')
     now_tw = datetime.now(tw_tz)
     today_tw_str = now_tw.strftime('%Y-%m-%d')
     
-    # === 關鍵邏輯：判斷現在是誰的主場 ===
-    # 台股開盤時間：09:00 ~ 14:00 (放寬一點到 14:30 確保盤後都算)
+    # 判斷盤中邏輯 (維持不變)
     is_tw_market_active = time(9, 0) <= now_tw.time() <= time(14, 30)
-    
-    # 美股開盤時間 (簡單抓晚上 9 點到隔天早上 5 點)
-    # 這邊邏輯是：如果現在是晚上，就算美股時段
     is_us_market_active = (now_tw.time() >= time(21, 0)) or (now_tw.time() <= time(5, 0))
 
     # 台股
@@ -117,7 +112,6 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
                 
-                # 取得資料日期字串
                 last_dt = hist.index[-1]
                 if last_dt.tzinfo is None:
                     last_dt = tw_tz.localize(last_dt)
@@ -125,9 +119,6 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     last_dt = last_dt.astimezone(tw_tz)
                 data_date_str = last_dt.strftime('%Y-%m-%d')
                 
-                # === 台股納入計算邏輯 ===
-                # 1. 如果資料日期是今天 -> 當然算
-                # 2. 如果現在是台股開盤時間 (09:00-14:30) -> 強制算！(不管日期標籤是不是慢了)
                 include_in_daily = (data_date_str == today_tw_str) or is_tw_market_active
 
                 if len(hist) >= 2:
@@ -175,10 +166,6 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     last_dt = last_dt.astimezone(tw_tz)
                 data_date_str = last_dt.strftime('%Y-%m-%d')
                 
-                # === 美股納入計算邏輯 ===
-                # 1. 如果資料日期是今天 (代表美股剛收盤或正在跑) -> 算
-                # 2. 如果現在是晚上 (美股開盤時間) -> 算
-                # 3. 如果現在是白天 (台股盤中)，但資料日期還是昨天的 -> 不算 (符合你的要求)
                 include_in_daily = (data_date_str == today_tw_str) or is_us_market_active
 
                 if len(hist) >= 2:
@@ -249,7 +236,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                         "市值": market_val_usd * usdtwd,
                         "總損益": profit_usd * usdtwd, 
                         "總報酬%": profit_pct,
-                        "include_in_daily": True # 加密貨幣永遠算
+                        "include_in_daily": True 
                     })
             except:
                 pass
@@ -287,7 +274,6 @@ total_return_rate = 0
 if (invested_assets - total_profit) > 0:
     total_return_rate = (total_profit / (invested_assets - total_profit)) * 100
 
-# [關鍵] 使用我們新定義的寬鬆邏輯 include_in_daily
 today_change_total = df[df['include_in_daily'] == True]['今日損益'].sum()
 today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 0 else 0
 
@@ -324,4 +310,21 @@ with col_table:
             '現價': '{:.2f}', '漲跌': '{:+.2f}', '幅度%': '{:+.2f}%', '市值': '${:,.0f}',
             '今日損益': '${:,.0f}', '佔比%': '{:.1f}%', '總報酬%': '{:+.2f}%', '總損益': '${:,.0f}' 
         })
-    st.dataframe(styled_df, height=500, use_container_width=True, hide_index=True)
+    
+    # [修正] 加上 column_config 恢復進度條
+    st.dataframe(
+        styled_df, 
+        height=500, 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "代號": st.column_config.TextColumn("代號"),
+            "現價": st.column_config.NumberColumn("現價 (USD)"), 
+            "佔比%": st.column_config.ProgressColumn(
+                "佔總資產 %", 
+                format="%.1f%%", 
+                min_value=0, 
+                max_value=100
+            ),
+        }
+    )
