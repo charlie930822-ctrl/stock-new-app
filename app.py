@@ -5,6 +5,7 @@ import plotly.express as px
 import json
 import os
 from datetime import datetime
+import pytz # 用來處裡台灣時區
 
 # --- 設定網頁標題與版面 ---
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
@@ -22,7 +23,7 @@ def load_settings():
         "twd_max": 0,
         "usd": 1000,
         
-        # 加密貨幣設定 (改回紀錄 USD 成本)
+        # 加密貨幣設定 (USD成本)
         "btc": 0.0, "btc_cost": 0.0,
         "eth": 0.0, "eth_cost": 0.0,
         "sol": 0.0, "sol_cost": 0.0
@@ -43,14 +44,13 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 (台股維持不變) ---
+# --- 1. 設定持股資料 ---
 tw_portfolio = [
     {'code': '2317.TW', 'name': '鴻海', 'shares': 342, 'cost': 166.84},
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
     {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
 ]
 
-# --- [更新] 美股資料 (AVGO 已移除，維持精確數據) ---
 us_portfolio = [
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
@@ -77,7 +77,6 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🪙 加密貨幣設定")
 st.sidebar.caption("請輸入持有數量與 **美金平均成本**")
 
-# [修改] 改回輸入美金成本 (key: *_cost)
 # BTC
 c1, c2 = st.sidebar.columns(2)
 btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.00000001, format="%.8f")
@@ -116,6 +115,10 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         
     data_list = []
     
+    # 設定台灣時區 (用於判斷是否為今天)
+    tw_tz = pytz.timezone('Asia/Taipei')
+    today_date_tw = datetime.now(tw_tz).date()
+
     # 台股
     for item in tw_portfolio:
         try:
@@ -125,6 +128,16 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
+                # 判斷這筆資料是否為今天
+                try:
+                    # 嘗試轉換時區比較
+                    data_date = hist.index[-1].astimezone(tw_tz).date()
+                except:
+                    # 如果失敗就直接比對日期
+                    data_date = hist.index[-1].date()
+                
+                is_real_today = (data_date == today_date_tw)
+
                 if len(hist) >= 2:
                     prev_close = hist['Close'].iloc[-2]
                     change_price = price - prev_close
@@ -147,7 +160,8 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     "今日損益": change_price * item['shares'],
                     "市值": market_val,
                     "總損益": profit,
-                    "總報酬%": profit_pct
+                    "總報酬%": profit_pct,
+                    "is_today": is_real_today # 標記是否為今日數據
                 })
         except:
             pass
@@ -162,6 +176,14 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
                 
+                # 判斷是否為今天 (台股開盤時，美股通常是昨天的日期)
+                try:
+                    data_date = hist.index[-1].astimezone(tw_tz).date()
+                except:
+                    data_date = hist.index[-1].date()
+                    
+                is_real_today = (data_date == today_date_tw)
+
                 if len(hist) >= 2:
                     prev_close = hist['Close'].iloc[-2]
                     change_price = price - prev_close
@@ -184,12 +206,13 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     "今日損益": (change_price * item['shares']) * usdtwd,
                     "市值": market_val_usd * usdtwd,
                     "總損益": profit_usd * usdtwd,
-                    "總報酬%": profit_pct
+                    "總報酬%": profit_pct,
+                    "is_today": is_real_today # 美股這裡通常會是 False (如果還是早上)
                 })
         except:
             pass
 
-    # 加密貨幣 (改為 USD 成本計算)
+    # 加密貨幣
     crypto_map = {
         'BTC-USD': {'name': 'BTC', 'qty': btc_d['qty'], 'cost': btc_d['cost']},
         'ETH-USD': {'name': 'ETH', 'qty': eth_d['qty'], 'cost': eth_d['cost']},
@@ -214,12 +237,21 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                         change_usd = 0
                         change_pct = 0
                     
-                    # 計算邏輯：全程使用美金計算損益，最後再換算台幣顯示
                     market_val_usd = price_usd * info['qty']
                     cost_val_usd = info['cost'] * info['qty']
                     profit_usd = market_val_usd - cost_val_usd
                     profit_pct = (profit_usd / cost_val_usd * 100) if cost_val_usd > 0 else 0
                     
+                    # 加密貨幣通常是 24 小時交易，所以視為 True，或者也可以比對日期
+                    # 為了保險，我們還是比對日期，通常都會是 True
+                    try:
+                        data_date = hist.index[-1].astimezone(tw_tz).date()
+                    except:
+                        data_date = hist.index[-1].date()
+                    
+                    # 加密貨幣稍微放寬一點，如果差一天以內都算(因為時區轉換可能有誤差)
+                    is_real_today = (data_date >= today_date_tw) 
+
                     data_list.append({
                         "代號": info['name'],
                         "類型": "Crypto",
@@ -228,8 +260,9 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                         "幅度%": change_pct,
                         "今日損益": (change_usd * info['qty']) * usdtwd,
                         "市值": market_val_usd * usdtwd,
-                        "總損益": profit_usd * usdtwd, # 換算回台幣顯示
-                        "總報酬%": profit_pct
+                        "總損益": profit_usd * usdtwd, 
+                        "總報酬%": profit_pct,
+                        "is_today": True # 加密貨幣直接設為參與今日計算
                     })
             except:
                 pass
@@ -247,7 +280,6 @@ def color_tw_style(val):
 # --- 5. 執行與計算 ---
 st.write("🔄 正在取得最新報價 (含加密貨幣)...")
 
-# 傳入 USD 成本
 btc_data = {'qty': btc_qty, 'cost': btc_cost}
 eth_data = {'qty': eth_qty, 'cost': eth_cost}
 sol_data = {'qty': sol_qty, 'cost': sol_cost}
@@ -275,7 +307,8 @@ invested_capital = (stock_total_val + crypto_total_val) - total_profit
 if invested_capital > 0:
     total_return_rate = (total_profit / invested_capital) * 100
 
-today_change_total = df['今日損益'].sum()
+# [關鍵修改] 今日變動只計算 "is_today" 為 True 的項目
+today_change_total = df[df['is_today'] == True]['今日損益'].sum()
 today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 0 else 0
 
 df['佔比%'] = (df['市值'] / total_assets) * 100
@@ -290,7 +323,7 @@ col4.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{t
 col5.metric("💵 現金部位 (TWD)", f"${cash_total_val:,.0f}")
 col6.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
 
-st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。")
+st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。今日變動僅計算當下開盤市場。")
 st.divider()
 
 # --- 7. 圖表與詳細表格 ---
@@ -325,6 +358,7 @@ with col_chart:
 with col_table:
     st.subheader("📋 持股與幣圈詳細行情")
     
+    # 表格顯示所有數據，不受 "is_today" 影響
     display_df = df[['代號', '類型', '現價', '漲跌', '幅度%', '市值', '佔比%', '今日損益', '總報酬%', '總損益']].copy()
     
     styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']) \
