@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import json
 import os
-from datetime import datetime
+from datetime import datetime, time
 import pytz 
 
 # --- 設定網頁標題與版面 ---
@@ -96,7 +96,11 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
     
     # 設定台灣時區
     tw_tz = pytz.timezone('Asia/Taipei')
-    today_tw_str = datetime.now(tw_tz).strftime('%Y-%m-%d')
+    now_tw = datetime.now(tw_tz)
+    today_tw_str = now_tw.strftime('%Y-%m-%d')
+    
+    # 判斷現在是否為台股盤中 (09:00 - 13:50，稍微寬限一點)
+    is_tw_market_open = time(9, 0) <= now_tw.time() <= time(13, 50)
 
     # 台股
     for item in tw_portfolio:
@@ -108,19 +112,22 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
                 
-                # [修正] 強制日期比對邏輯
+                # 取得資料日期
                 last_dt = hist.index[-1]
-                # 處理 index 可能沒有時區的問題
                 if last_dt.tzinfo is None:
-                    # 如果沒有時區，假設它是台灣時間
                     last_dt = tw_tz.localize(last_dt)
                 else:
-                    # 如果有時區，轉換成台灣時間
                     last_dt = last_dt.astimezone(tw_tz)
                 
-                # 比對「日期字串」最準確
                 data_date_str = last_dt.strftime('%Y-%m-%d')
+                
+                # [修正邏輯]
+                # 1. 如果日期對得上 -> True
+                # 2. 如果日期對不上，但現在是台股盤中交易時間 -> 強制 True (視為資料日期標籤延遲)
                 is_real_today = (data_date_str == today_tw_str)
+                
+                if not is_real_today and is_tw_market_open:
+                     is_real_today = True
 
                 if len(hist) >= 2:
                     prev_close = hist['Close'].iloc[-2]
@@ -160,11 +167,8 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
                 
-                # 美股日期判定
                 last_dt = hist.index[-1]
                 if last_dt.tzinfo is None:
-                    # 美股原始資料通常是美東時間或 UTC，這裡簡化判斷
-                    # 直接轉字串比對，如果美股收盤是昨天，這裡就會是不相等
                     last_dt = tw_tz.localize(last_dt) 
                 else:
                     last_dt = last_dt.astimezone(tw_tz)
@@ -195,7 +199,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     "市值": market_val_usd * usdtwd,
                     "總損益": profit_usd * usdtwd,
                     "總報酬%": profit_pct,
-                    "is_today": is_real_today # 開盤前這會是 False，符合你的需求
+                    "is_today": is_real_today 
                 })
         except:
             pass
