@@ -5,7 +5,7 @@ import plotly.express as px
 import json
 import os
 from datetime import datetime
-import pytz # 用來處裡台灣時區
+import pytz 
 
 # --- 設定網頁標題與版面 ---
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
@@ -15,15 +15,8 @@ st.title("💰 媽媽狩獵者 的資產儀表板")
 DATA_FILE = "cash_data.json"
 
 def load_settings():
-    """從檔案讀取設定，如果檔案不存在則回傳預設值"""
     default_data = {
-        # 銀行、實體、以及 MAX交易所現金
-        "twd_bank": 50000, 
-        "twd_physical": 0,
-        "twd_max": 0,
-        "usd": 1000,
-        
-        # 加密貨幣設定 (USD成本)
+        "twd_bank": 50000, "twd_physical": 0, "twd_max": 0, "usd": 1000,
         "btc": 0.0, "btc_cost": 0.0,
         "eth": 0.0, "eth_cost": 0.0,
         "sol": 0.0, "sol_cost": 0.0
@@ -40,7 +33,6 @@ def load_settings():
     return default_data
 
 def save_settings(data_dict):
-    """將目前的設定寫入檔案"""
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
@@ -61,12 +53,10 @@ us_portfolio = [
     {'code': 'TSLA', 'shares': 4.42199, 'cost': 423.40823}, 
 ]
 
-# --- 2. 側邊欄：資產設定 ---
+# --- 2. 側邊欄 ---
 st.sidebar.header("⚙️ 資產設定")
-
 saved_data = load_settings()
 
-# 法幣現金區塊
 st.sidebar.subheader("💵 法幣現金")
 cash_twd_bank = st.sidebar.number_input("🏦 銀行存款 (TWD)", value=float(saved_data.get("twd_bank", 50000)), step=10000.0)
 cash_twd_physical = st.sidebar.number_input("🧧 實體現鈔 (TWD)", value=float(saved_data.get("twd_physical", 0)), step=1000.0)
@@ -75,32 +65,21 @@ cash_usd = st.sidebar.number_input("🇺🇸 美金 (USD)", value=float(saved_da
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🪙 加密貨幣設定")
-st.sidebar.caption("請輸入持有數量與 **美金平均成本**")
-
-# BTC
 c1, c2 = st.sidebar.columns(2)
 btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.00000001, format="%.8f")
 btc_cost = c2.number_input("BTC 均價(USD)", value=float(saved_data.get("btc_cost", 0.0)), step=100.0, format="%.2f")
 
-# ETH
 c3, c4 = st.sidebar.columns(2)
 eth_qty = c3.number_input("ETH 顆數", value=float(saved_data["eth"]), step=0.00000001, format="%.8f")
 eth_cost = c4.number_input("ETH 均價(USD)", value=float(saved_data.get("eth_cost", 0.0)), step=10.0, format="%.2f")
 
-# SOL
 c5, c6 = st.sidebar.columns(2)
 sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.00000001, format="%.8f")
 sol_cost = c6.number_input("SOL 均價(USD)", value=float(saved_data.get("sol_cost", 0.0)), step=1.0, format="%.2f")
 
-# 存檔
 current_data = {
-    "twd_bank": cash_twd_bank, 
-    "twd_physical": cash_twd_physical,
-    "twd_max": cash_twd_max,
-    "usd": cash_usd,
-    "btc": btc_qty, "btc_cost": btc_cost,
-    "eth": eth_qty, "eth_cost": eth_cost,
-    "sol": sol_qty, "sol_cost": sol_cost
+    "twd_bank": cash_twd_bank, "twd_physical": cash_twd_physical, "twd_max": cash_twd_max, "usd": cash_usd,
+    "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost
 }
 if current_data != saved_data:
     save_settings(current_data)
@@ -115,9 +94,9 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         
     data_list = []
     
-    # 設定台灣時區 (用於判斷是否為今天)
+    # 設定台灣時區
     tw_tz = pytz.timezone('Asia/Taipei')
-    today_date_tw = datetime.now(tw_tz).date()
+    today_tw_str = datetime.now(tw_tz).strftime('%Y-%m-%d')
 
     # 台股
     for item in tw_portfolio:
@@ -128,15 +107,20 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
-                # 判斷這筆資料是否為今天
-                try:
-                    # 嘗試轉換時區比較
-                    data_date = hist.index[-1].astimezone(tw_tz).date()
-                except:
-                    # 如果失敗就直接比對日期
-                    data_date = hist.index[-1].date()
                 
-                is_real_today = (data_date == today_date_tw)
+                # [修正] 強制日期比對邏輯
+                last_dt = hist.index[-1]
+                # 處理 index 可能沒有時區的問題
+                if last_dt.tzinfo is None:
+                    # 如果沒有時區，假設它是台灣時間
+                    last_dt = tw_tz.localize(last_dt)
+                else:
+                    # 如果有時區，轉換成台灣時間
+                    last_dt = last_dt.astimezone(tw_tz)
+                
+                # 比對「日期字串」最準確
+                data_date_str = last_dt.strftime('%Y-%m-%d')
+                is_real_today = (data_date_str == today_tw_str)
 
                 if len(hist) >= 2:
                     prev_close = hist['Close'].iloc[-2]
@@ -161,7 +145,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     "市值": market_val,
                     "總損益": profit,
                     "總報酬%": profit_pct,
-                    "is_today": is_real_today # 標記是否為今日數據
+                    "is_today": is_real_today 
                 })
         except:
             pass
@@ -176,13 +160,17 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
                 
-                # 判斷是否為今天 (台股開盤時，美股通常是昨天的日期)
-                try:
-                    data_date = hist.index[-1].astimezone(tw_tz).date()
-                except:
-                    data_date = hist.index[-1].date()
+                # 美股日期判定
+                last_dt = hist.index[-1]
+                if last_dt.tzinfo is None:
+                    # 美股原始資料通常是美東時間或 UTC，這裡簡化判斷
+                    # 直接轉字串比對，如果美股收盤是昨天，這裡就會是不相等
+                    last_dt = tw_tz.localize(last_dt) 
+                else:
+                    last_dt = last_dt.astimezone(tw_tz)
                     
-                is_real_today = (data_date == today_date_tw)
+                data_date_str = last_dt.strftime('%Y-%m-%d')
+                is_real_today = (data_date_str == today_tw_str)
 
                 if len(hist) >= 2:
                     prev_close = hist['Close'].iloc[-2]
@@ -207,7 +195,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     "市值": market_val_usd * usdtwd,
                     "總損益": profit_usd * usdtwd,
                     "總報酬%": profit_pct,
-                    "is_today": is_real_today # 美股這裡通常會是 False (如果還是早上)
+                    "is_today": is_real_today # 開盤前這會是 False，符合你的需求
                 })
         except:
             pass
@@ -242,16 +230,6 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     profit_usd = market_val_usd - cost_val_usd
                     profit_pct = (profit_usd / cost_val_usd * 100) if cost_val_usd > 0 else 0
                     
-                    # 加密貨幣通常是 24 小時交易，所以視為 True，或者也可以比對日期
-                    # 為了保險，我們還是比對日期，通常都會是 True
-                    try:
-                        data_date = hist.index[-1].astimezone(tw_tz).date()
-                    except:
-                        data_date = hist.index[-1].date()
-                    
-                    # 加密貨幣稍微放寬一點，如果差一天以內都算(因為時區轉換可能有誤差)
-                    is_real_today = (data_date >= today_date_tw) 
-
                     data_list.append({
                         "代號": info['name'],
                         "類型": "Crypto",
@@ -262,14 +240,14 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                         "市值": market_val_usd * usdtwd,
                         "總損益": profit_usd * usdtwd, 
                         "總報酬%": profit_pct,
-                        "is_today": True # 加密貨幣直接設為參與今日計算
+                        "is_today": True # 加密貨幣永遠算今日
                     })
             except:
                 pass
             
     return pd.DataFrame(data_list), usdtwd
 
-# --- 4. 樣式設定函數 ---
+# --- 4. 樣式 ---
 def color_tw_style(val):
     if isinstance(val, (int, float)):
         if val > 0: return 'color: #FF4B4B; font-weight: bold'
@@ -277,9 +255,8 @@ def color_tw_style(val):
         elif val == 0: return 'color: white; opacity: 0.5'
     return ''
 
-# --- 5. 執行與計算 ---
+# --- 5. 執行 ---
 st.write("🔄 正在取得最新報價 (含加密貨幣)...")
-
 btc_data = {'qty': btc_qty, 'cost': btc_cost}
 eth_data = {'qty': eth_qty, 'cost': eth_cost}
 sol_data = {'qty': sol_qty, 'cost': sol_cost}
@@ -288,34 +265,27 @@ df, rate = get_data_and_calculate(btc_data, eth_data, sol_data)
 
 crypto_df = df[df['類型'] == 'Crypto']
 stock_df = df[df['類型'] != 'Crypto']
-
 crypto_total_val = crypto_df['市值'].sum() if not crypto_df.empty else 0
 stock_total_val = stock_df['市值'].sum() if not stock_df.empty else 0
 
-# 計算總現金
 total_cash_twd_only = cash_twd_bank + cash_twd_physical + cash_twd_max
 cash_total_val = total_cash_twd_only + (cash_usd * rate)
-
-# 計算投資總資產
 invested_assets = stock_total_val + crypto_total_val
-
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 total_profit = df['總損益'].sum() 
 
 total_return_rate = 0 
-invested_capital = (stock_total_val + crypto_total_val) - total_profit
-if invested_capital > 0:
-    total_return_rate = (total_profit / invested_capital) * 100
+if (invested_assets - total_profit) > 0:
+    total_return_rate = (total_profit / (invested_assets - total_profit)) * 100
 
-# [關鍵修改] 今日變動只計算 "is_today" 為 True 的項目
+# [關鍵] 今日變動計算
 today_change_total = df[df['is_today'] == True]['今日損益'].sum()
 today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 0 else 0
 
 df['佔比%'] = (df['市值'] / total_assets) * 100
 
-# --- 6. 顯示上方大數據 (6欄) ---
+# --- 6. 顯示 ---
 col1, col2, col3, col4, col5, col6 = st.columns(6)
-
 col1.metric("🏆 總資產 (TWD)", f"${total_assets:,.0f}")
 col2.metric("📈 投資總資產 (TWD)", f"${invested_assets:,.0f}")
 col3.metric("💰 總獲利 (TWD)", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
@@ -326,66 +296,23 @@ col6.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
 st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。今日變動僅計算當下開盤市場。")
 st.divider()
 
-# --- 7. 圖表與詳細表格 ---
 col_chart, col_table = st.columns([0.35, 0.65])
-
 with col_chart:
     st.subheader("📊 資產配置")
     chart_df = df[['代號', '市值']].copy()
-    
-    # 顯示現金細項
-    if cash_twd_bank > 0:
-        new_row = pd.DataFrame([{'代號': '銀行存款', '市值': cash_twd_bank}])
-        chart_df = pd.concat([chart_df, new_row], ignore_index=True)
-        
-    if cash_twd_physical > 0:
-        new_row = pd.DataFrame([{'代號': '實體現鈔', '市值': cash_twd_physical}])
-        chart_df = pd.concat([chart_df, new_row], ignore_index=True)
-
-    if cash_twd_max > 0:
-        new_row = pd.DataFrame([{'代號': 'MAX 交易所', '市值': cash_twd_max}])
-        chart_df = pd.concat([chart_df, new_row], ignore_index=True)
-        
-    if cash_usd > 0:
-        new_row = pd.DataFrame([{'代號': '美金存款', '市值': cash_usd * rate}])
-        chart_df = pd.concat([chart_df, new_row], ignore_index=True)
-    
-    fig = px.pie(chart_df, values='市值', names='代號', hole=0.4, 
-                 title=f"總資產: ${total_assets:,.0f}")
+    if cash_twd_bank > 0: chart_df = pd.concat([chart_df, pd.DataFrame([{'代號': '銀行存款', '市值': cash_twd_bank}])], ignore_index=True)
+    if cash_twd_physical > 0: chart_df = pd.concat([chart_df, pd.DataFrame([{'代號': '實體現鈔', '市值': cash_twd_physical}])], ignore_index=True)
+    if cash_twd_max > 0: chart_df = pd.concat([chart_df, pd.DataFrame([{'代號': 'MAX 交易所', '市值': cash_twd_max}])], ignore_index=True)
+    if cash_usd > 0: chart_df = pd.concat([chart_df, pd.DataFrame([{'代號': '美金存款', '市值': cash_usd * rate}])], ignore_index=True)
+    fig = px.pie(chart_df, values='市值', names='代號', hole=0.4, title=f"總資產: ${total_assets:,.0f}")
     fig.update_traces(textposition='inside', textinfo='percent+label')
     st.plotly_chart(fig, use_container_width=True)
 
 with col_table:
     st.subheader("📋 持股與幣圈詳細行情")
-    
-    # 表格顯示所有數據，不受 "is_today" 影響
     display_df = df[['代號', '類型', '現價', '漲跌', '幅度%', '市值', '佔比%', '今日損益', '總報酬%', '總損益']].copy()
-    
-    styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']) \
-        .format({
-            '現價': '{:.2f}', 
-            '漲跌': '{:+.2f}',
-            '幅度%': '{:+.2f}%',
-            '市值': '${:,.0f}',
-            '今日損益': '${:,.0f}',
-            '佔比%': '{:.1f}%',        
-            '總報酬%': '{:+.2f}%',
-            '總損益': '${:,.0f}' 
+    styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']).format({
+            '現價': '{:.2f}', '漲跌': '{:+.2f}', '幅度%': '{:+.2f}%', '市值': '${:,.0f}',
+            '今日損益': '${:,.0f}', '佔比%': '{:.1f}%', '總報酬%': '{:+.2f}%', '總損益': '${:,.0f}' 
         })
-
-    st.dataframe(
-        styled_df,
-        height=500,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "代號": st.column_config.TextColumn("代號"),
-            "現價": st.column_config.NumberColumn("現價 (USD)"), 
-            "佔比%": st.column_config.ProgressColumn(
-                "佔總資產 %", 
-                format="%.1f%%", 
-                min_value=0, 
-                max_value=100
-            ),
-        }
-    )
+    st.dataframe(styled_df, height=500, use_container_width=True, hide_index=True)
