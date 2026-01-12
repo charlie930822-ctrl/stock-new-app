@@ -16,10 +16,10 @@ DATA_FILE = "cash_data.json"
 
 def load_settings():
     default_data = {
-        "twd_bank": 50000, "twd_physical": 0, "twd_max": 0, "usd": 1000,
-        "btc": 0.0, "btc_cost": 0.0,
-        "eth": 0.0, "eth_cost": 0.0,
-        "sol": 0.0, "sol_cost": 0.0
+        "twd_bank": 76575, "twd_physical": 0, "twd_max": 0, "usd": 0,
+        "btc": 0.003385, "btc_cost": 92000.91,
+        "eth": 0.05363119, "eth_cost": 2955.50,
+        "sol": 1.28, "sol_cost": 125
     }
     if os.path.exists(DATA_FILE):
         try:
