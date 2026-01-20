@@ -49,7 +49,7 @@ us_portfolio = [
     {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.48549},
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
     {'code': 'ORCL', 'shares': 1.98072	, 'cost': 184.97252	},
-    {'code': 'TSLA', 'shares': 4.61917, 'cost': 423.30267	}, 
+    {'code': 'TSLA', 'shares': 5.09479	, 'cost': 423.04103		}, 
 ]
 
 # --- 2. 側邊欄 ---
