@@ -21,8 +21,10 @@ def load_settings():
         "btc": 0.0, "btc_cost": 0.0,
         "eth": 0.0, "eth_cost": 0.0,
         "sol": 0.0, "sol_cost": 0.0,
-        # [新增] 紀錄已實現損益
-        "realized_profit_twd": 0.0
+        # [已實現損益]
+        "realized_profit_twd": 0.0,       # 台股 (TWD)
+        "realized_profit_us_stock": 0.0,  # 美股 (USD)
+        "realized_profit_crypto": 0.0     # 加密貨幣 (USD)
     }
     if os.path.exists(DATA_FILE):
         try:
@@ -37,13 +39,10 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 (已更新庫存) ---
+# --- 1. 設定持股資料 (維持您原本的設定) ---
 tw_portfolio = [
-    # 鴻海從 342 改為 252 (賣出 90 股)
     {'code': '2317.TW', 'name': '鴻海', 'shares': 252, 'cost': 166.84},
-    # 台積電維持不變
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
-    # 世芯-KY 已全數賣出，故刪除
 ]
 
 us_portfolio = [
@@ -60,13 +59,27 @@ us_portfolio = [
 st.sidebar.header("⚙️ 資產設定")
 saved_data = load_settings()
 
-# [新增功能] 已實現損益輸入區
+# [新增功能] 已實現損益輸入區 (擴充版)
 with st.sidebar.expander("💰 已實現損益 (落袋為安)", expanded=True):
     realized_twd = st.number_input(
-        "台股已實現獲利 (TWD)", 
+        "🇹🇼 台股已實現獲利 (TWD)", 
         value=float(saved_data.get("realized_profit_twd", 0.0)), 
         step=100.0,
-        help="請輸入券商軟體顯示的「已實現損益」總額 (例如: 3455)"
+        help="輸入台股券商顯示的已實現損益 (例如: 3455)"
+    )
+    
+    realized_us_stock = st.number_input(
+        "🇺🇸 美股已實現獲利 (USD)", 
+        value=float(saved_data.get("realized_profit_us_stock", 0.0)), 
+        step=10.0,
+        help="輸入美股券商顯示的 Realized P/L (例如: 50.5)"
+    )
+    
+    realized_crypto = st.number_input(
+        "🪙 加密貨幣已實現獲利 (USD)", 
+        value=float(saved_data.get("realized_profit_crypto", 0.0)), 
+        step=10.0,
+        help="輸入交易所顯示的 Realized P/L (例如: 120)"
     )
 
 st.sidebar.subheader("💵 法幣現金")
@@ -89,16 +102,18 @@ c5, c6 = st.sidebar.columns(2)
 sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.00000001, format="%.8f")
 sol_cost = c6.number_input("SOL 均價(USD)", value=float(saved_data.get("sol_cost", 0.0)), step=1.0, format="%.2f")
 
-# 存檔邏輯
+# 存檔邏輯 (記得存新欄位)
 current_data = {
     "twd_bank": cash_twd_bank, "twd_physical": cash_twd_physical, "twd_max": cash_twd_max, "usd": cash_usd,
     "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost,
-    "realized_profit_twd": realized_twd # 記得存這筆資料
+    "realized_profit_twd": realized_twd,
+    "realized_profit_us_stock": realized_us_stock,
+    "realized_profit_crypto": realized_crypto
 }
 if current_data != saved_data:
     save_settings(current_data)
 
-# --- 3. 核心計算函數 ---
+# --- 3. 核心計算函數 (維持不變) ---
 @st.cache_data(ttl=30) 
 def get_data_and_calculate(btc_d, eth_d, sol_d):
     try:
@@ -112,7 +127,6 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
     now_tw = datetime.now(tw_tz)
     today_tw_str = now_tw.strftime('%Y-%m-%d')
     
-    # 判斷盤中邏輯 (強制顯示今日損益)
     is_tw_market_active = time(9, 0) <= now_tw.time() <= time(14, 30)
     is_us_market_active = (now_tw.time() >= time(21, 0)) or (now_tw.time() <= time(5, 0))
 
@@ -284,12 +298,13 @@ cash_total_val = total_cash_twd_only + (cash_usd * rate)
 invested_assets = stock_total_val + crypto_total_val
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 
-# --- [關鍵計算] 總獲利 = 帳面損益 (Unrealized) + 已實現損益 (Realized) ---
+# --- [關鍵計算升級] 總獲利 = 帳面損益 + (台股已實現) + [(美股+幣圈已實現) * 匯率] ---
 unrealized_profit = df['總損益'].sum()
-total_profit = unrealized_profit + realized_twd 
+total_realized_twd = realized_twd + ((realized_us_stock + realized_crypto) * rate) # USD 自動轉 TWD
+total_profit = unrealized_profit + total_realized_twd
 
 # 報酬率計算 (還原成本法)
-invested_capital = (stock_total_val + crypto_total_val + realized_twd) - total_profit
+invested_capital = (stock_total_val + crypto_total_val + total_realized_twd) - total_profit
 total_return_rate = 0 
 if invested_capital > 0:
     total_return_rate = (total_profit / invested_capital) * 100
@@ -303,18 +318,23 @@ df['佔比%'] = (df['市值'] / total_assets) * 100
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 col1.metric("🏆 總資產 (TWD)", f"${total_assets:,.0f}")
 col2.metric("📈 投資總資產 (TWD)", f"${invested_assets:,.0f}")
-# 總獲利欄位加上 help 提示
+
+# 總獲利欄位 (含詳細提示)
 col3.metric(
     "💰 總獲利 (TWD)", 
     f"${total_profit:,.0f}", 
     delta=f"{total_return_rate:.2f}%",
-    help=f"帳面損益: ${unrealized_profit:,.0f} + 已實現獲利: ${realized_twd:,.0f}"
+    help=f"""
+    帳面損益 (未賣): ${unrealized_profit:,.0f}
+    + 台股已實現: ${realized_twd:,.0f}
+    + 美股/幣圈已實現: ${((realized_us_stock + realized_crypto) * rate):,.0f} (USD依匯率換算)
+    """
 )
 col4.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
 col5.metric("💵 現金部位 (TWD)", f"${cash_total_val:,.0f}")
 col6.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
 
-st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。總獲利已包含側邊欄輸入的「已實現損益」。")
+st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。總獲利已包含側邊欄輸入的「所有已實現損益」。")
 st.divider()
 
 # --- 7. 圖表與表格 ---
