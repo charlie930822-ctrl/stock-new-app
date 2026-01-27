@@ -39,7 +39,7 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 (維持您原本的設定) ---
+# --- 1. 設定持股資料 ---
 tw_portfolio = [
     {'code': '2317.TW', 'name': '鴻海', 'shares': 252, 'cost': 166.84},
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
@@ -52,6 +52,7 @@ us_portfolio = [
     {'code': 'SGOV', 'shares': 4.97892, 'cost': 100.61},
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
     {'code': 'ORCL', 'shares': 2.98072, 'cost': 182.04},
+    {'code': 'SOUN', 'shares': 5, 'cost': 11.16},
     {'code': 'TSLA', 'shares': 5.09479, 'cost': 423.040823}, 
 ]
 
@@ -59,7 +60,7 @@ us_portfolio = [
 st.sidebar.header("⚙️ 資產設定")
 saved_data = load_settings()
 
-# [新增功能] 已實現損益輸入區 (擴充版)
+# [已實現損益輸入區]
 with st.sidebar.expander("💰 已實現損益 (落袋為安)", expanded=True):
     realized_twd = st.number_input(
         "🇹🇼 台股已實現獲利 (TWD)", 
@@ -102,7 +103,7 @@ c5, c6 = st.sidebar.columns(2)
 sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.00000001, format="%.8f")
 sol_cost = c6.number_input("SOL 均價(USD)", value=float(saved_data.get("sol_cost", 0.0)), step=1.0, format="%.2f")
 
-# 存檔邏輯 (記得存新欄位)
+# 存檔邏輯
 current_data = {
     "twd_bank": cash_twd_bank, "twd_physical": cash_twd_physical, "twd_max": cash_twd_max, "usd": cash_usd,
     "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost,
@@ -113,7 +114,7 @@ current_data = {
 if current_data != saved_data:
     save_settings(current_data)
 
-# --- 3. 核心計算函數 (維持不變) ---
+# --- 3. 核心計算函數 ---
 @st.cache_data(ttl=30) 
 def get_data_and_calculate(btc_d, eth_d, sol_d):
     try:
@@ -139,23 +140,18 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
-                
                 last_dt = hist.index[-1]
                 if last_dt.tzinfo is None:
                     last_dt = tw_tz.localize(last_dt)
                 else:
                     last_dt = last_dt.astimezone(tw_tz)
                 data_date_str = last_dt.strftime('%Y-%m-%d')
-                
                 include_in_daily = (data_date_str == today_tw_str) or is_tw_market_active
-
                 if len(hist) >= 2:
-                    prev_close = hist['Close'].iloc[-2]
-                    change_price = price - prev_close
-                    change_pct = (change_price / prev_close) * 100
+                    change_price = price - hist['Close'].iloc[-2]
+                    change_pct = (change_price / hist['Close'].iloc[-2]) * 100
                 else:
-                    change_price = 0
-                    change_pct = 0
+                    change_price = 0; change_pct = 0
 
                 market_val = price * item['shares']
                 cost_val = item['cost'] * item['shares']
@@ -163,19 +159,11 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                 profit_pct = (profit / cost_val) * 100 if cost_val != 0 else 0
                 
                 data_list.append({
-                    "代號": item['name'],
-                    "類型": "台股",
-                    "現價": price,
-                    "漲跌": change_price,
-                    "幅度%": change_pct,
-                    "今日損益": change_price * item['shares'],
-                    "市值": market_val,
-                    "總損益": profit,
-                    "總報酬%": profit_pct,
-                    "include_in_daily": include_in_daily
+                    "代號": item['name'], "類型": "台股", "現價": price, "漲跌": change_price,
+                    "幅度%": change_pct, "今日損益": change_price * item['shares'],
+                    "市值": market_val, "總損益": profit, "總報酬%": profit_pct, "include_in_daily": include_in_daily
                 })
-        except:
-            pass
+        except: pass
 
     # 美股
     for item in us_portfolio:
@@ -186,23 +174,18 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
-                
                 last_dt = hist.index[-1]
                 if last_dt.tzinfo is None:
                     last_dt = tw_tz.localize(last_dt) 
                 else:
                     last_dt = last_dt.astimezone(tw_tz)
                 data_date_str = last_dt.strftime('%Y-%m-%d')
-                
                 include_in_daily = (data_date_str == today_tw_str) or is_us_market_active
-
                 if len(hist) >= 2:
-                    prev_close = hist['Close'].iloc[-2]
-                    change_price = price - prev_close
-                    change_pct = (change_price / prev_close) * 100
+                    change_price = price - hist['Close'].iloc[-2]
+                    change_pct = (change_price / hist['Close'].iloc[-2]) * 100
                 else:
-                    change_price = 0
-                    change_pct = 0
+                    change_price = 0; change_pct = 0
                 
                 market_val_usd = price * item['shares']
                 cost_val_usd = item['cost'] * item['shares']
@@ -210,19 +193,12 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                 profit_pct = (profit_usd / cost_val_usd) * 100 if cost_val_usd != 0 else 0
                 
                 data_list.append({
-                    "代號": item['code'],
-                    "類型": "美股",
-                    "現價": price,
-                    "漲跌": change_price,        
-                    "幅度%": change_pct,
-                    "今日損益": (change_price * item['shares']) * usdtwd,
-                    "市值": market_val_usd * usdtwd,
-                    "總損益": profit_usd * usdtwd,
-                    "總報酬%": profit_pct,
-                    "include_in_daily": include_in_daily
+                    "代號": item['code'], "類型": "美股", "現價": price, "漲跌": change_price,        
+                    "幅度%": change_pct, "今日損益": (change_price * item['shares']) * usdtwd,
+                    "市值": market_val_usd * usdtwd, "總損益": profit_usd * usdtwd,
+                    "總報酬%": profit_pct, "include_in_daily": include_in_daily
                 })
-        except:
-            pass
+        except: pass
 
     # 加密貨幣
     crypto_map = {
@@ -230,24 +206,19 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
         'ETH-USD': {'name': 'ETH', 'qty': eth_d['qty'], 'cost': eth_d['cost']},
         'SOL-USD': {'name': 'SOL', 'qty': sol_d['qty'], 'cost': sol_d['cost']}
     }
-    
     for code, info in crypto_map.items():
         if info['qty'] > 0:
             try:
                 ticker = yf.Ticker(code)
                 hist = ticker.history(period="5d")
                 hist = hist.dropna()
-                
                 if not hist.empty:
                     price_usd = hist['Close'].iloc[-1]
-                    
                     if len(hist) >= 2:
-                        prev_usd = hist['Close'].iloc[-2]
-                        change_usd = price_usd - prev_usd
-                        change_pct = (change_usd / prev_usd) * 100
+                        change_usd = price_usd - hist['Close'].iloc[-2]
+                        change_pct = (change_usd / hist['Close'].iloc[-2]) * 100
                     else:
-                        change_usd = 0
-                        change_pct = 0
+                        change_usd = 0; change_pct = 0
                     
                     market_val_usd = price_usd * info['qty']
                     cost_val_usd = info['cost'] * info['qty']
@@ -255,19 +226,12 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     profit_pct = (profit_usd / cost_val_usd * 100) if cost_val_usd > 0 else 0
                     
                     data_list.append({
-                        "代號": info['name'],
-                        "類型": "Crypto",
-                        "現價": price_usd,
-                        "漲跌": change_usd,
-                        "幅度%": change_pct,
-                        "今日損益": (change_usd * info['qty']) * usdtwd,
-                        "市值": market_val_usd * usdtwd,
-                        "總損益": profit_usd * usdtwd, 
-                        "總報酬%": profit_pct,
-                        "include_in_daily": True 
+                        "代號": info['name'], "類型": "Crypto", "現價": price_usd, "漲跌": change_usd,
+                        "幅度%": change_pct, "今日損益": (change_usd * info['qty']) * usdtwd,
+                        "市值": market_val_usd * usdtwd, "總損益": profit_usd * usdtwd, 
+                        "總報酬%": profit_pct, "include_in_daily": True 
                     })
-            except:
-                pass
+            except: pass
             
     return pd.DataFrame(data_list), usdtwd
 
@@ -298,12 +262,23 @@ cash_total_val = total_cash_twd_only + (cash_usd * rate)
 invested_assets = stock_total_val + crypto_total_val
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 
-# --- [關鍵計算升級] 總獲利 = 帳面損益 + (台股已實現) + [(美股+幣圈已實現) * 匯率] ---
-unrealized_profit = df['總損益'].sum()
-total_realized_twd = realized_twd + ((realized_us_stock + realized_crypto) * rate) # USD 自動轉 TWD
-total_profit = unrealized_profit + total_realized_twd
+# --- [關鍵計算升級] 總獲利分類計算 ---
+# 1. 計算各市場的「帳面損益 (Unrealized)」(從 df 抓)
+unrealized_tw = df[df['類型'] == '台股']['總損益'].sum()
+unrealized_us = df[df['類型'] == '美股']['總損益'].sum()
+unrealized_crypto = df[df['類型'] == 'Crypto']['總損益'].sum()
+
+# 2. 計算各市場的「總獲利 (Total)」= 帳面 + 已實現
+# 注意：美股和幣圈的已實現是 USD，要乘匯率
+profit_tw_total = unrealized_tw + realized_twd
+profit_us_total = unrealized_us + (realized_us_stock * rate)
+profit_crypto_total = unrealized_crypto + (realized_crypto * rate)
+
+# 3. 整體總獲利
+total_profit = profit_tw_total + profit_us_total + profit_crypto_total
 
 # 報酬率計算 (還原成本法)
+total_realized_twd = realized_twd + ((realized_us_stock + realized_crypto) * rate)
 invested_capital = (stock_total_val + crypto_total_val + total_realized_twd) - total_profit
 total_return_rate = 0 
 if invested_capital > 0:
@@ -314,27 +289,23 @@ today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 
 
 df['佔比%'] = (df['市值'] / total_assets) * 100
 
-# --- 6. 顯示指標 ---
+# --- 6. 顯示指標 (第一排：總覽) ---
 col1, col2, col3, col4, col5, col6 = st.columns(6)
-col1.metric("🏆 總資產 (TWD)", f"${total_assets:,.0f}")
-col2.metric("📈 投資總資產 (TWD)", f"${invested_assets:,.0f}")
+col1.metric("🏆 總資產", f"${total_assets:,.0f}")
+col2.metric("📈 投資總資產", f"${invested_assets:,.0f}")
+col3.metric("💰 整體總獲利", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
+col4.metric("📅 今日變動", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
+col5.metric("💵 現金部位", f"${cash_total_val:,.0f}")
+col6.metric("🪙 加密市值", f"${crypto_total_val:,.0f}")
 
-# 總獲利欄位 (含詳細提示)
-col3.metric(
-    "💰 總獲利 (TWD)", 
-    f"${total_profit:,.0f}", 
-    delta=f"{total_return_rate:.2f}%",
-    help=f"""
-    帳面損益 (未賣): ${unrealized_profit:,.0f}
-    + 台股已實現: ${realized_twd:,.0f}
-    + 美股/幣圈已實現: ${((realized_us_stock + realized_crypto) * rate):,.0f} (USD依匯率換算)
-    """
-)
-col4.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
-col5.metric("💵 現金部位 (TWD)", f"${cash_total_val:,.0f}")
-col6.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
+# --- [新功能] 顯示獲利細項 (第二排：各市場獲利) ---
+st.markdown("### 📊 獲利貢獻分析 (含已實現)")
+sub_c1, sub_c2, sub_c3 = st.columns(3)
+sub_c1.metric("🇹🇼 台股總獲利", f"${profit_tw_total:,.0f}", help=f"帳面: ${unrealized_tw:,.0f} + 已實現: ${realized_twd:,.0f}")
+sub_c2.metric("🇺🇸 美股總獲利", f"${profit_us_total:,.0f}", help=f"帳面: ${unrealized_us:,.0f} + 已實現: ${(realized_us_stock * rate):,.0f} (TWD)")
+sub_c3.metric("🪙 幣圈總獲利", f"${profit_crypto_total:,.0f}", help=f"帳面: ${unrealized_crypto:,.0f} + 已實現: ${(realized_crypto * rate):,.0f} (TWD)")
 
-st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。總獲利已包含側邊欄輸入的「所有已實現損益」。")
+st.caption(f"註：美股與幣圈已自動依匯率 (1:{rate:.2f}) 換算台幣。")
 st.divider()
 
 # --- 7. 圖表與表格 ---
