@@ -15,18 +15,19 @@ st.title("💰 媽媽狩獵者 的資產儀表板")
 DATA_FILE = "cash_data.json"
 
 def load_settings():
+    # 預設值
     default_data = {
-        "twd_bank": 55039.00, "twd_physical": 0, "twd_max": 0, "usd": 1607.64,
-        "btc": 0.003385, "btc_cost": 92000.91,
-        "eth": 0.05363119, "eth_cost": 2955.50,
-        "sol": 2.34, "sol_cost": 134
+        "twd_bank": 50000, "twd_physical": 0, "twd_max": 0, "usd": 1000,
+        "btc": 0.0, "btc_cost": 0.0,
+        "eth": 0.0, "eth_cost": 0.0,
+        "sol": 0.0, "sol_cost": 0.0,
+        # [新增] 紀錄已實現損益
+        "realized_profit_twd": 0.0
     }
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
                 saved = json.load(f)
-                if "twd" in saved and "twd_bank" not in saved:
-                    saved["twd_bank"] = saved["twd"]
                 return {**default_data, **saved}
         except:
             pass
@@ -36,25 +37,37 @@ def save_settings(data_dict):
     with open(DATA_FILE, "w") as f:
         json.dump(data_dict, f)
 
-# --- 1. 設定持股資料 ---
+# --- 1. 設定持股資料 (已更新庫存) ---
 tw_portfolio = [
-    {'code': '2317.TW', 'name': '鴻海', 'shares': 342, 'cost': 166.84},
+    # 鴻海從 342 改為 252 (賣出 90 股)
+    {'code': '2317.TW', 'name': '鴻海', 'shares': 252, 'cost': 166.84},
+    # 台積電維持不變
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
-    {'code': '3661.TW', 'name': '世芯-KY', 'shares': 8, 'cost': 3675.00},
+    # 世芯-KY 已全數賣出，故刪除
 ]
 
 us_portfolio = [
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.48549},
+    {'code': 'SGOV', 'shares': 13.44337, 'cost': 100.28736},
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
-    {'code': 'ORCL', 'shares': 2.98072	, 'cost': 182.04},
-    {'code': 'TSLA', 'shares': 5.09479	, 'cost': 423.04103		}, 
+    {'code': 'SOUN', 'shares': 5, 'cost': 10.93},
+    {'code': 'TSLA', 'shares': 4.42199, 'cost': 423.40823}, 
 ]
 
-# --- 2. 側邊欄 ---
+# --- 2. 側邊欄設定 ---
 st.sidebar.header("⚙️ 資產設定")
 saved_data = load_settings()
+
+# [新增功能] 已實現損益輸入區
+with st.sidebar.expander("💰 已實現損益 (落袋為安)", expanded=True):
+    realized_twd = st.number_input(
+        "台股已實現獲利 (TWD)", 
+        value=float(saved_data.get("realized_profit_twd", 0.0)), 
+        step=100.0,
+        help="請輸入券商軟體顯示的「已實現損益」總額 (例如: 3455)"
+    )
 
 st.sidebar.subheader("💵 法幣現金")
 cash_twd_bank = st.sidebar.number_input("🏦 銀行存款 (TWD)", value=float(saved_data.get("twd_bank", 50000)), step=10000.0)
@@ -76,9 +89,11 @@ c5, c6 = st.sidebar.columns(2)
 sol_qty = c5.number_input("SOL 顆數", value=float(saved_data["sol"]), step=0.00000001, format="%.8f")
 sol_cost = c6.number_input("SOL 均價(USD)", value=float(saved_data.get("sol_cost", 0.0)), step=1.0, format="%.2f")
 
+# 存檔邏輯
 current_data = {
     "twd_bank": cash_twd_bank, "twd_physical": cash_twd_physical, "twd_max": cash_twd_max, "usd": cash_usd,
-    "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost
+    "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost,
+    "realized_profit_twd": realized_twd # 記得存這筆資料
 }
 if current_data != saved_data:
     save_settings(current_data)
@@ -97,7 +112,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
     now_tw = datetime.now(tw_tz)
     today_tw_str = now_tw.strftime('%Y-%m-%d')
     
-    # 判斷盤中邏輯 (維持不變)
+    # 判斷盤中邏輯 (強制顯示今日損益)
     is_tw_market_active = time(9, 0) <= now_tw.time() <= time(14, 30)
     is_us_market_active = (now_tw.time() >= time(21, 0)) or (now_tw.time() <= time(5, 0))
 
@@ -250,7 +265,7 @@ def color_tw_style(val):
         elif val == 0: return 'color: white; opacity: 0.5'
     return ''
 
-# --- 5. 執行 ---
+# --- 5. 執行與計算 ---
 st.write("🔄 正在取得最新報價 (含加密貨幣)...")
 btc_data = {'qty': btc_qty, 'cost': btc_cost}
 eth_data = {'qty': eth_qty, 'cost': eth_cost}
@@ -258,6 +273,7 @@ sol_data = {'qty': sol_qty, 'cost': sol_cost}
 
 df, rate = get_data_and_calculate(btc_data, eth_data, sol_data)
 
+# 分類數據
 crypto_df = df[df['類型'] == 'Crypto']
 stock_df = df[df['類型'] != 'Crypto']
 crypto_total_val = crypto_df['市值'].sum() if not crypto_df.empty else 0
@@ -267,29 +283,41 @@ total_cash_twd_only = cash_twd_bank + cash_twd_physical + cash_twd_max
 cash_total_val = total_cash_twd_only + (cash_usd * rate)
 invested_assets = stock_total_val + crypto_total_val
 total_assets = stock_total_val + crypto_total_val + cash_total_val
-total_profit = df['總損益'].sum() 
 
+# --- [關鍵計算] 總獲利 = 帳面損益 (Unrealized) + 已實現損益 (Realized) ---
+unrealized_profit = df['總損益'].sum()
+total_profit = unrealized_profit + realized_twd 
+
+# 報酬率計算 (還原成本法)
+invested_capital = (stock_total_val + crypto_total_val + realized_twd) - total_profit
 total_return_rate = 0 
-if (invested_assets - total_profit) > 0:
-    total_return_rate = (total_profit / (invested_assets - total_profit)) * 100
+if invested_capital > 0:
+    total_return_rate = (total_profit / invested_capital) * 100
 
 today_change_total = df[df['include_in_daily'] == True]['今日損益'].sum()
 today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 0 else 0
 
 df['佔比%'] = (df['市值'] / total_assets) * 100
 
-# --- 6. 顯示 ---
+# --- 6. 顯示指標 ---
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 col1.metric("🏆 總資產 (TWD)", f"${total_assets:,.0f}")
 col2.metric("📈 投資總資產 (TWD)", f"${invested_assets:,.0f}")
-col3.metric("💰 總獲利 (TWD)", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
+# 總獲利欄位加上 help 提示
+col3.metric(
+    "💰 總獲利 (TWD)", 
+    f"${total_profit:,.0f}", 
+    delta=f"{total_return_rate:.2f}%",
+    help=f"帳面損益: ${unrealized_profit:,.0f} + 已實現獲利: ${realized_twd:,.0f}"
+)
 col4.metric("📅 今日變動 (TWD)", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
 col5.metric("💵 現金部位 (TWD)", f"${cash_total_val:,.0f}")
 col6.metric("🪙 加密貨幣 (TWD)", f"${crypto_total_val:,.0f}")
 
-st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。今日變動：台股盤中時不計算美股昨日波動。")
+st.caption(f"註：美股與幣圈損益已自動依匯率 (1:{rate:.2f}) 換算為台幣。總獲利已包含側邊欄輸入的「已實現損益」。")
 st.divider()
 
+# --- 7. 圖表與表格 ---
 col_chart, col_table = st.columns([0.35, 0.65])
 with col_chart:
     st.subheader("📊 資產配置")
@@ -310,7 +338,6 @@ with col_table:
             '今日損益': '${:,.0f}', '佔比%': '{:.1f}%', '總報酬%': '{:+.2f}%', '總損益': '${:,.0f}' 
         })
     
-    # [修正] 加上 column_config 恢復進度條
     st.dataframe(
         styled_df, 
         height=500, 
