@@ -50,10 +50,9 @@ us_portfolio = [
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.48549},
-    {'code': 'SGOV', 'shares': 13.44337, 'cost': 100.28736},
+    {'code': 'SGOV', 'shares': 4.97892, 'cost': 100.61},
     {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
-    {'code': 'SOUN', 'shares': 5, 'cost': 10.93},
-    {'code': 'TSLA', 'shares': 4.42199, 'cost': 423.40823}, 
+    {'code': 'TSLA', 'shares': 5.09479, 'cost': 423.040823}, 
 ]
 
 # --- 2. 側邊欄設定 ---
