@@ -17,10 +17,10 @@ DATA_FILE = "cash_data.json"
 def load_settings():
     # 預設值
     default_data = {
-        "twd_bank": 50000, "twd_physical": 0, "twd_max": 0, "usd": 1000,
-        "btc": 0.0, "btc_cost": 0.0,
-        "eth": 0.0, "eth_cost": 0.0,
-        "sol": 0.0, "sol_cost": 0.0,
+        "twd_bank": 94089, "twd_physical": 0, "twd_max": 0, "usd": 731.79,
+        "btc": 0.00338, "btc_cost": 92486.47,
+        "eth": 0.0536, "eth_cost": 2970.53,
+        "sol": 4.209, "sol_cost": 136.0,
         # [已實現損益]
         "realized_profit_twd": 0.0,       # 台股 (TWD)
         "realized_profit_us_stock": 0.0,  # 美股 (USD)
@@ -50,9 +50,8 @@ us_portfolio = [
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.48549},
     {'code': 'SGOV', 'shares': 4.97892, 'cost': 100.61},
-    {'code': 'SOFI', 'shares': 36.523, 'cost': 27.38001},
+    {'code': 'SOFI', 'shares': 51.523, 'cost': 26.68769	},
     {'code': 'ORCL', 'shares': 2.98072, 'cost': 182.04},
-    {'code': 'SOUN', 'shares': 5, 'cost': 11.16},
     {'code': 'TSLA', 'shares': 5.09479, 'cost': 423.040823}, 
 ]
 
