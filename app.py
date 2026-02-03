@@ -49,7 +49,7 @@ us_portfolio = [
     {'code': 'GRAB', 'shares': 50, 'cost': 5.125},
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 8.93654, 'cost': 173.48549},
-    {'code': 'SGOV', 'shares': 4.97892, 'cost': 100.61},
+    {'code': 'PLTR', 'shares': 2.2357, 'cost': 148.96006},
     {'code': 'SOFI', 'shares': 51.523, 'cost': 26.68769	},
     {'code': 'ORCL', 'shares': 2.98072, 'cost': 182.04},
     {'code': 'TSLA', 'shares': 5.09479, 'cost': 423.040823}, 
