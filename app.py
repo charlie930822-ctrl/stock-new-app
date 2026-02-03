@@ -17,8 +17,8 @@ DATA_FILE = "cash_data.json"
 def load_settings():
     # 預設值
     default_data = {
-        "twd_bank": 80000, "twd_physical": 0, "twd_max": 7045, "usd": 731.79,
-        "btc": 0.00607, "btc_cost": 88388.31,
+        "twd_bank": 80000, "twd_physical": 0, "twd_max": 0, "usd": 731.79,
+        "btc": 0.00887095, "btc_cost": 85411.87,
         "eth": 0.0536, "eth_cost": 2970.53,
         "sol": 4.209, "sol_cost": 136.0,
         # [已實現損益]
