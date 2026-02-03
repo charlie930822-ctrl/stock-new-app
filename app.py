@@ -18,9 +18,9 @@ def load_settings():
     # 預設值
     default_data = {
         "twd_bank": 48492, "twd_physical": 0, "twd_max": 0, "usd": 1900,
-        "btc": 0.00887095, "btc_cost": 85411.87,
-        "eth": 0.0536, "eth_cost": 2970.53,
-        "sol": 4.209, "sol_cost": 136.0,
+        "btc": 0.00887095, "btc_cost": 85460.87,
+        "eth": 0.0536, "eth_cost": 2960.53,
+        "sol": 4.209, "sol_cost": 130.0,
         # [已實現損益]
         "realized_profit_twd": 0.0,       # 台股 (TWD)
         "realized_profit_us_stock": 0.0,  # 美股 (USD)
