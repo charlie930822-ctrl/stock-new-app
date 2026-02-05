@@ -50,7 +50,7 @@ us_portfolio = [
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 9.78414, 'cost': 173.7884},
     {'code': 'PLTR', 'shares': 2.2357, 'cost': 148.96006},
-    {'code': 'SOFI', 'shares': 57.3943, 'cost': 26.13552	},
+    {'code': 'SOFI', 'shares': 67.3943, 'cost': 25.33345},
     {'code': 'ORCL', 'shares': 2.98072, 'cost': 182.04},
     {'code': 'TSLA', 'shares': 5.09479, 'cost': 423.040823}, 
 ]
