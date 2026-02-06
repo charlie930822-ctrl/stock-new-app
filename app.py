@@ -18,7 +18,7 @@ def load_settings():
     # 預設值
     default_data = {
         "twd_bank": 48492, "twd_physical": 0, "twd_max": 0, "usd": 1900,
-        "btc": 0.00887095, "btc_cost": 85484.69,
+        "btc": 0.012498, "btc_cost": 79905.3,
         "eth": 0.0536, "eth_cost": 2961.40,
         "sol": 4.209, "sol_cost": 131.0,
         # [已實現損益]
@@ -52,6 +52,7 @@ us_portfolio = [
     {'code': 'PLTR', 'shares': 2.2357, 'cost': 148.96006},
     {'code': 'SOFI', 'shares': 67.3943, 'cost': 25.33345},
     {'code': 'ORCL', 'shares': 2.98072, 'cost': 182.04},
+    {'code': 'QQQI', 'shares': 9, 'cost': 52.34},
     {'code': 'TSLA', 'shares': 5.09479, 'cost': 423.040823}, 
 ]
 
