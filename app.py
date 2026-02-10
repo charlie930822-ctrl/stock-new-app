@@ -41,7 +41,7 @@ def save_settings(data_dict):
 
 # --- 1. 設定持股資料 ---
 tw_portfolio = [
-    {'code': '2317.TW', 'name': '鴻海', 'shares': 252, 'cost': 166.84},
+    {'code': '2317.TW', 'name': '鴻海', 'shares': 160, 'cost': 166.84},
     {'code': '2330.TW', 'name': '台積電', 'shares': 44, 'cost': 1013.12},
 ]
 
