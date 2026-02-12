@@ -17,7 +17,7 @@ DATA_FILE = "cash_data.json"
 def load_settings():
     # 預設值
     default_data = {
-        "twd_bank": 46000.00, "twd_physical": 0, "twd_max": 0, "usd": 971.31,
+        "twd_bank": 46000.00, "twd_physical": 0, "twd_max": 0, "usd": 544.16,
         "btc": 0.012498, "btc_cost": 79905.3,
         "eth": 0.0536, "eth_cost": 2961.40,
         "sol": 4.209, "sol_cost": 131.0,
@@ -50,7 +50,7 @@ us_portfolio = [
     {'code': 'NFLX', 'shares': 10.33591, 'cost': 96.75007},
     {'code': 'NVDA', 'shares': 9.78414, 'cost': 173.7884},
     {'code': 'PLTR', 'shares': 2.2357, 'cost': 148.96006},
-    {'code': 'SOFI', 'shares': 67.3943, 'cost': 25.33345},
+    {'code': 'SOFI', 'shares': 80.3943, 'cost': 24.419},
     {'code': 'ORCL', 'shares': 4.20742, 'cost': 169.68324},
     {'code': 'QQQI', 'shares': 9, 'cost': 52.3771},
     {'code': 'TSLA', 'shares': 5.09479, 'cost': 423.040823}, 
