@@ -16,7 +16,7 @@ DATA_FILE = "cash_data.json"
 # 1) 讀寫設定
 # =========================
 def load_settings():
-    default_data = {
+default_data = {
         "twd_bank": 68334, "twd_physical": 0, "twd_max": 0, "usd": 544.16,
         "btc": 0.012498, "btc_cost": 79905.3,
         "eth": 0.0536, "eth_cost": 2961.40,
