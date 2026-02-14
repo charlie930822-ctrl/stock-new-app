@@ -65,14 +65,14 @@ saved_data = load_settings()
 with st.sidebar.expander("💰 已實現損益 (落袋為安)", expanded=True):
     realized_twd = st.number_input(
         "🇹🇼 台股已實現獲利 (TWD)", 
-        value=float(saved_data.get("realized_profit_twd", 0.0)), 
+        value=float(saved_data.get("realized_profit_twd", 97747.00)), 
         step=100.0,
         help="輸入台股券商顯示的已實現損益總額"
     )
     
     realized_us_stock = st.number_input(
         "🇺🇸 美股已實現獲利 (USD)", 
-        value=float(saved_data.get("realized_profit_us_stock", 0.0)), 
+        value=float(saved_data.get("realized_profit_us_stock", -45)), 
         step=10.0,
         help="輸入美股券商顯示的 Realized P/L (USD)"
     )
