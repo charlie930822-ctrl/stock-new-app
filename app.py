@@ -16,45 +16,45 @@ DATA_FILE = "cash_data.json"
 # 1) 讀寫設定
 # =========================
 def load_settings():
-    default_data = {
-        "twd_bank": 68334, "twd_physical": 0, "twd_max": 0, "usd": 544.16,
-        "btc": 0.012498, "btc_cost": 79905.3,
-        "eth": 0.0536, "eth_cost": 2961.40,
-        "sol": 4.209, "sol_cost": 131.0,
-        "realized_profit_twd": 0.0,
-        "realized_profit_us_stock": 0.0,
-        "realized_profit_crypto": 0.0
-    }
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            return {**default_data, **saved}
-        except:
-            return default_data
-    return default_data
+    default_data = {
+        "twd_bank": 68334, "twd_physical": 0, "twd_max": 0, "usd": 544.16,
+        "btc": 0.012498, "btc_cost": 79905.3,
+        "eth": 0.0536, "eth_cost": 2961.40,
+        "sol": 4.209, "sol_cost": 131.0,
+        "realized_profit_twd": 0.0,
+        "realized_profit_us_stock": 0.0,
+        "realized_profit_crypto": 0.0
+    }
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            return {**default_data, **saved}
+        except:
+            return default_data
+    return default_data
 
 def save_settings(d):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(d, f, ensure_ascii=False, indent=2)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
 
 # =========================
 # 2) 你的持股（先保留硬編碼）
 # =========================
 tw_portfolio = [
-    {"code": "2317.TW", "name": "鴻海", "shares": 160, "cost": 166.84},
-    {"code": "2330.TW", "name": "台積電", "shares": 44, "cost": 1013.12},
+    {"code": "2317.TW", "name": "鴻海", "shares": 160, "cost": 166.84},
+    {"code": "2330.TW", "name": "台積電", "shares": 44, "cost": 1013.12},
 ]
 
 us_portfolio = [
-    {"code": "GRAB", "shares": 50, "cost": 5.125},
-    {"code": "NFLX", "shares": 10.33591, "cost": 96.75007},
-    {"code": "NVDA", "shares": 9.78414, "cost": 173.7884},
-    {"code": "PLTR", "shares": 2.2357, "cost": 148.96006},
-    {"code": "SOFI", "shares": 80.3943, "cost": 24.419},
-    {"code": "ORCL", "shares": 4.20742, "cost": 169.68324},
-    {"code": "QQQI", "shares": 9, "cost": 52.3771},
-    {"code": "TSLA", "shares": 5.09479, "cost": 423.040823},
+    {"code": "GRAB", "shares": 50, "cost": 5.125},
+    {"code": "NFLX", "shares": 10.33591, "cost": 96.75007},
+    {"code": "NVDA", "shares": 9.78414, "cost": 173.7884},
+    {"code": "PLTR", "shares": 2.2357, "cost": 148.96006},
+    {"code": "SOFI", "shares": 80.3943, "cost": 24.419},
+    {"code": "ORCL", "shares": 4.20742, "cost": 169.68324},
+    {"code": "QQQI", "shares": 9, "cost": 52.3771},
+    {"code": "TSLA", "shares": 5.09479, "cost": 423.040823},
 ]
 
 # =========================
@@ -64,9 +64,9 @@ st.sidebar.header("⚙️ 資產設定")
 saved = load_settings()
 
 with st.sidebar.expander("💰 已實現損益 (落袋為安)", expanded=True):
-    realized_twd = st.number_input("🇹🇼 台股已實現獲利 (TWD)", value=float(saved.get("realized_profit_twd", 97747.0)), step=100.0)
-    realized_us_stock = st.number_input("🇺🇸 美股已實現獲利 (USD)", value=float(saved.get("realized_profit_us_stock", -45)), step=10.0)
-    realized_crypto = st.number_input("🪙 加密貨幣已實現獲利 (USD)", value=float(saved.get("realized_profit_crypto", 0.0)), step=10.0)
+    realized_twd = st.number_input("🇹🇼 台股已實現獲利 (TWD)", value=float(saved.get("realized_profit_twd", 0.0)), step=100.0)
+    realized_us_stock = st.number_input("🇺🇸 美股已實現獲利 (USD)", value=float(saved.get("realized_profit_us_stock", 0.0)), step=10.0)
+    realized_crypto = st.number_input("🪙 加密貨幣已實現獲利 (USD)", value=float(saved.get("realized_profit_crypto", 0.0)), step=10.0)
 
 st.sidebar.subheader("💵 法幣現金")
 cash_twd_bank = st.sidebar.number_input("🏦 銀行存款 (TWD)", value=float(saved.get("twd_bank", 0.0)), step=10000.0)
@@ -89,160 +89,160 @@ sol_qty = c5.number_input("SOL 顆數", value=float(saved.get("sol", 0.0)), step
 sol_cost = c6.number_input("SOL 均價(USD)", value=float(saved.get("sol_cost", 0.0)), step=1.0, format="%.2f")
 
 current = {
-    "twd_bank": cash_twd_bank, "twd_physical": cash_twd_physical, "twd_max": cash_twd_max, "usd": cash_usd,
-    "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost,
-    "realized_profit_twd": realized_twd,
-    "realized_profit_us_stock": realized_us_stock,
-    "realized_profit_crypto": realized_crypto
+    "twd_bank": cash_twd_bank, "twd_physical": cash_twd_physical, "twd_max": cash_twd_max, "usd": cash_usd,
+    "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost,
+    "realized_profit_twd": realized_twd,
+    "realized_profit_us_stock": realized_us_stock,
+    "realized_profit_crypto": realized_crypto
 }
 if current != saved:
-    save_settings(current)
+    save_settings(current)
 
 # =========================
 # 4) 穩定抓匯率 & 價格（逐檔抓，不會整包死）
 # =========================
 @st.cache_data(ttl=120)
 def get_usdtwd():
-    # 先試 USD/TWD，再試 USDTWD，最後 fallback
-    candidates = ["TWD=X", "USDTWD=X"]
-    for c in candidates:
-        try:
-            df = yf.download(c, period="10d", interval="1d", progress=False)
-            s = df.get("Close", pd.Series()).dropna()
-            if len(s) > 0:
-                return float(s.iloc[-1]), c
-        except:
-            pass
-    return 32.5, "fallback(32.5)"
+    # 先試 USD/TWD，再試 USDTWD，最後 fallback
+    candidates = ["TWD=X", "USDTWD=X"]
+    for c in candidates:
+        try:
+            df = yf.download(c, period="10d", interval="1d", progress=False)
+            s = df.get("Close", pd.Series()).dropna()
+            if len(s) > 0:
+                return float(s.iloc[-1]), c
+        except:
+            pass
+    return 32.5, "fallback(32.5)"
 
 @st.cache_data(ttl=60)
 def fetch_last_two_closes(codes):
-    """
-    回傳 dict: {code: (last_close, prev_close)}
-    - 逐檔抓，避免一次抓一堆導致整包掛掉
-    """
-    out = {}
-    errors = []
-    for code in codes:
-        try:
-            df = yf.download(code, period="15d", interval="1d", progress=False)
-            s = df.get("Close", pd.Series()).dropna()
-            if len(s) >= 2:
-                out[code] = (float(s.iloc[-1]), float(s.iloc[-2]))
-            elif len(s) == 1:
-                out[code] = (float(s.iloc[-1]), float(s.iloc[-1]))
-            else:
-                errors.append(f"{code}：沒拿到 Close")
-        except Exception as e:
-            errors.append(f"{code} 抓價失敗：{e}")
-    return out, errors
+    """
+    回傳 dict: {code: (last_close, prev_close)}
+    - 逐檔抓，避免一次抓一堆導致整包掛掉
+    """
+    out = {}
+    errors = []
+    for code in codes:
+        try:
+            df = yf.download(code, period="15d", interval="1d", progress=False)
+            s = df.get("Close", pd.Series()).dropna()
+            if len(s) >= 2:
+                out[code] = (float(s.iloc[-1]), float(s.iloc[-2]))
+            elif len(s) == 1:
+                out[code] = (float(s.iloc[-1]), float(s.iloc[-1]))
+            else:
+                errors.append(f"{code}：沒拿到 Close")
+        except Exception as e:
+            errors.append(f"{code} 抓價失敗：{e}")
+    return out, errors
 
 @st.cache_data(ttl=60)
 def build_df(tw_portfolio, us_portfolio, crypto_inputs):
-    errors = []
+    errors = []
 
-    rate, rate_src = get_usdtwd()
+    rate, rate_src = get_usdtwd()
 
-    tw_codes = [x["code"] for x in tw_portfolio]
-    us_codes = [x["code"] for x in us_portfolio]
-    crypto_codes = list(crypto_inputs.keys())
+    tw_codes = [x["code"] for x in tw_portfolio]
+    us_codes = [x["code"] for x in us_portfolio]
+    crypto_codes = list(crypto_inputs.keys())
 
-    tw_prices, tw_err = fetch_last_two_closes(tw_codes)
-    us_prices, us_err = fetch_last_two_closes(us_codes)
-    cr_prices, cr_err = fetch_last_two_closes(crypto_codes)
-    errors += tw_err + us_err + cr_err
+    tw_prices, tw_err = fetch_last_two_closes(tw_codes)
+    us_prices, us_err = fetch_last_two_closes(us_codes)
+    cr_prices, cr_err = fetch_last_two_closes(crypto_codes)
+    errors += tw_err + us_err + cr_err
 
-    rows = []
+    rows = []
 
-    # 台股（TWD）
-    for it in tw_portfolio:
-        code = it["code"]
-        if code not in tw_prices:
-            errors.append(f"台股抓不到：{code}")
-            continue
-        last_close, prev_close = tw_prices[code]
-        change = last_close - prev_close
-        change_pct = (change / prev_close * 100) if prev_close else 0.0
+    # 台股（TWD）
+    for it in tw_portfolio:
+        code = it["code"]
+        if code not in tw_prices:
+            errors.append(f"台股抓不到：{code}")
+            continue
+        last_close, prev_close = tw_prices[code]
+        change = last_close - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0.0
 
-        mv = last_close * it["shares"]
-        cost = it["cost"] * it["shares"]
-        unreal = mv - cost
-        unreal_pct = (unreal / cost * 100) if cost else 0.0
+        mv = last_close * it["shares"]
+        cost = it["cost"] * it["shares"]
+        unreal = mv - cost
+        unreal_pct = (unreal / cost * 100) if cost else 0.0
 
-        rows.append({
-            "代號": it["name"],
-            "類型": "台股",
-            "幣別": "TWD",
-            "現價": last_close,
-            "漲跌": change,
-            "幅度%": change_pct,
-            "今日損益(TWD)": change * it["shares"],
-            "市值(TWD)": mv,
-            "未實現損益(TWD)": unreal,
-            "未實現報酬%": unreal_pct,
-        })
+        rows.append({
+            "代號": it["name"],
+            "類型": "台股",
+            "幣別": "TWD",
+            "現價": last_close,
+            "漲跌": change,
+            "幅度%": change_pct,
+            "今日損益(TWD)": change * it["shares"],
+            "市值(TWD)": mv,
+            "未實現損益(TWD)": unreal,
+            "未實現報酬%": unreal_pct,
+        })
 
-    # 美股（USD -> 顯示換成 TWD）
-    for it in us_portfolio:
-        code = it["code"]
-        if code not in us_prices:
-            errors.append(f"美股抓不到：{code}")
-            continue
-        last_close, prev_close = us_prices[code]
-        change = last_close - prev_close
-        change_pct = (change / prev_close * 100) if prev_close else 0.0
+    # 美股（USD -> 顯示換成 TWD）
+    for it in us_portfolio:
+        code = it["code"]
+        if code not in us_prices:
+            errors.append(f"美股抓不到：{code}")
+            continue
+        last_close, prev_close = us_prices[code]
+        change = last_close - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0.0
 
-        mv_usd = last_close * it["shares"]
-        cost_usd = it["cost"] * it["shares"]
-        unreal_usd = mv_usd - cost_usd
-        unreal_pct = (unreal_usd / cost_usd * 100) if cost_usd else 0.0
+        mv_usd = last_close * it["shares"]
+        cost_usd = it["cost"] * it["shares"]
+        unreal_usd = mv_usd - cost_usd
+        unreal_pct = (unreal_usd / cost_usd * 100) if cost_usd else 0.0
 
-        rows.append({
-            "代號": code,
-            "類型": "美股",
-            "幣別": "USD",
-            "現價": last_close,
-            "漲跌": change,
-            "幅度%": change_pct,
-            "今日損益(TWD)": (change * it["shares"]) * rate,
-            "市值(TWD)": mv_usd * rate,
-            "未實現損益(TWD)": unreal_usd * rate,
-            "未實現報酬%": unreal_pct,
-        })
+        rows.append({
+            "代號": code,
+            "類型": "美股",
+            "幣別": "USD",
+            "現價": last_close,
+            "漲跌": change,
+            "幅度%": change_pct,
+            "今日損益(TWD)": (change * it["shares"]) * rate,
+            "市值(TWD)": mv_usd * rate,
+            "未實現損益(TWD)": unreal_usd * rate,
+            "未實現報酬%": unreal_pct,
+        })
 
-    # 幣圈（用日K兩天 close 近似 24h）
-    for code, info in crypto_inputs.items():
-        qty = float(info["qty"])
-        cost = float(info["cost"])
-        if qty <= 0:
-            continue
-        if code not in cr_prices:
-            errors.append(f"幣圈抓不到：{code}")
-            continue
-        last_close, prev_close = cr_prices[code]
-        change = last_close - prev_close
-        change_pct = (change / prev_close * 100) if prev_close else 0.0
+    # 幣圈（用日K兩天 close 近似 24h）
+    for code, info in crypto_inputs.items():
+        qty = float(info["qty"])
+        cost = float(info["cost"])
+        if qty <= 0:
+            continue
+        if code not in cr_prices:
+            errors.append(f"幣圈抓不到：{code}")
+            continue
+        last_close, prev_close = cr_prices[code]
+        change = last_close - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0.0
 
-        mv_usd = last_close * qty
-        cost_usd = cost * qty
-        unreal_usd = mv_usd - cost_usd
-        unreal_pct = (unreal_usd / cost_usd * 100) if cost_usd else 0.0
+        mv_usd = last_close * qty
+        cost_usd = cost * qty
+        unreal_usd = mv_usd - cost_usd
+        unreal_pct = (unreal_usd / cost_usd * 100) if cost_usd else 0.0
 
-        rows.append({
-            "代號": code.replace("-USD", ""),
-            "類型": "Crypto(24h)",
-            "幣別": "USD",
-            "現價": last_close,
-            "漲跌": change,
-            "幅度%": change_pct,
-            "今日損益(TWD)": (change * qty) * rate,
-            "市值(TWD)": mv_usd * rate,
-            "未實現損益(TWD)": unreal_usd * rate,
-            "未實現報酬%": unreal_pct,
-        })
+        rows.append({
+            "代號": code.replace("-USD", ""),
+            "類型": "Crypto(24h)",
+            "幣別": "USD",
+            "現價": last_close,
+            "漲跌": change,
+            "幅度%": change_pct,
+            "今日損益(TWD)": (change * qty) * rate,
+            "市值(TWD)": mv_usd * rate,
+            "未實現損益(TWD)": unreal_usd * rate,
+            "未實現報酬%": unreal_pct,
+        })
 
-    df = pd.DataFrame(rows)
-    return df, rate, rate_src, errors
+    df = pd.DataFrame(rows)
+    return df, rate, rate_src, errors
 
 # =========================
 # 5) 執行計算
@@ -250,9 +250,9 @@ def build_df(tw_portfolio, us_portfolio, crypto_inputs):
 st.write("🔄 正在取得最新報價...")
 
 crypto_inputs = {
-    "BTC-USD": {"qty": btc_qty, "cost": btc_cost},
-    "ETH-USD": {"qty": eth_qty, "cost": eth_cost},
-    "SOL-USD": {"qty": sol_qty, "cost": sol_cost},
+    "BTC-USD": {"qty": btc_qty, "cost": btc_cost},
+    "ETH-USD": {"qty": eth_qty, "cost": eth_cost},
+    "SOL-USD": {"qty": sol_qty, "cost": sol_cost},
 }
 
 df, rate, rate_src, errors = build_df(tw_portfolio, us_portfolio, crypto_inputs)
@@ -281,114 +281,4 @@ total_profit = profit_tw_total + profit_us_total + profit_crypto_total
 
 # 近似報酬率（保留你的邏輯）
 invested_approx = total_assets - total_profit
-return_rate_approx = (total_profit / invested_approx * 100) if invested_approx > 0 else 0.0
-
-# 今日/24h 變動
-today_change = float(df["今日損益(TWD)"].sum()) if not df.empty else 0.0
-today_change_pct = (today_change / total_assets * 100) if total_assets else 0.0
-
-# 佔比
-if not df.empty and total_assets > 0:
-    df["佔比%"] = df["市值(TWD)"] / total_assets * 100
-else:
-    if not df.empty:
-        df["佔比%"] = 0.0
-
-# =========================
-# 6) 指標區
-# =========================
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("🏆 總資產(TWD)", f"${total_assets:,.0f}")
-c2.metric("💰 總獲利(含已實現)", f"${total_profit:,.0f}", delta=f"{return_rate_approx:.2f}% (近似)")
-c3.metric("📅 今日/24h 變動(TWD)", f"${today_change:,.0f}", delta=f"{today_change_pct:.2f}%")
-c4.metric("💱 USD/TWD", f"{rate:.2f}", delta=rate_src)
-
-st.markdown("---")
-
-# =========================
-# 7) 損益結構
-# =========================
-st.subheader("📊 損益結構分析 (TWD)")
-a, b, c = st.columns(3)
-with a:
-    st.info(f"**🇹🇼 台股總損益**\n\n### ${profit_tw_total:,.0f}")
-    st.write(f"- 未實現：${unreal_tw:,.0f}")
-    st.write(f"- 已實現：${real_tw_twd:,.0f}")
-with b:
-    st.info(f"**🇺🇸 美股總損益**\n\n### ${profit_us_total:,.0f}")
-    st.write(f"- 未實現：${unreal_us:,.0f}")
-    st.write(f"- 已實現：${real_us_twd:,.0f}")
-with c:
-    st.info(f"**🪙 幣圈總損益**\n\n### ${profit_crypto_total:,.0f}")
-    st.write(f"- 未實現：${unreal_crypto:,.0f}")
-    st.write(f"- 已實現：${real_crypto_twd:,.0f}")
-
-st.divider()
-
-# =========================
-# 8) 圓餅圖 + 明細表
-# =========================
-left, right = st.columns([0.35, 0.65])
-
-with left:
-    st.subheader("🍰 資產配置圓餅圖")
-
-    chart_rows = []
-    if not df.empty:
-        for _, r in df.iterrows():
-            chart_rows.append({"項目": r["代號"], "市值": r["市值(TWD)"]})
-
-    if cash_twd_bank > 0: chart_rows.append({"項目": "銀行存款", "市值": cash_twd_bank})
-    if cash_twd_physical > 0: chart_rows.append({"項目": "實體現鈔", "市值": cash_twd_physical})
-    if cash_twd_max > 0: chart_rows.append({"項目": "MAX 交易所", "市值": cash_twd_max})
-    if cash_usd > 0: chart_rows.append({"項目": "美金存款(折台)", "市值": cash_usd * rate})
-
-    chart_df = pd.DataFrame(chart_rows)
-    if chart_df.empty:
-        st.warning("目前沒有可顯示的資產。")
-    else:
-        fig = px.pie(chart_df, values="市值", names="項目", hole=0.4, title=f"總資產: ${total_assets:,.0f} TWD")
-        fig.update_traces(textposition="inside", textinfo="percent+label")
-        st.plotly_chart(fig, use_container_width=True)
-
-with right:
-    st.subheader("📋 持倉詳細行情（市值/損益以 TWD 統一）")
-
-    if df.empty:
-        st.warning("沒有抓到任何行情資料（可能是網路或代碼問題）。")
-    else:
-        show = df[[
-            "代號", "類型", "幣別", "現價", "漲跌", "幅度%", "市值(TWD)", "佔比%",
-            "今日損益(TWD)", "未實現報酬%", "未實現損益(TWD)"
-        ]].copy()
-
-        def color_style(v):
-            if isinstance(v, (int, float)):
-                if v > 0: return "color: #FF4B4B; font-weight: bold"
-                if v < 0: return "color: #00C853; font-weight: bold"
-                return "color: gray"
-            return ""
-
-        styled = (
-            show.style
-            .map(color_style, subset=["漲跌", "幅度%", "今日損益(TWD)", "未實現報酬%", "未實現損益(TWD)"])
-            .format({
-                "現價": "{:.2f}",
-                "漲跌": "{:+.2f}",
-                "幅度%": "{:+.2f}%",
-                "市值(TWD)": "${:,.0f}",
-                "佔比%": "{:.1f}%",
-                "今日損益(TWD)": "${:,.0f}",
-                "未實現報酬%": "{:+.2f}%",
-                "未實現損益(TWD)": "${:,.0f}",
-            })
-        )
-        st.dataframe(styled, use_container_width=True, height=520, hide_index=True)
-
-# =========================
-# 9) 抓價錯誤區（方便你知道哪檔壞）
-# =========================
-if errors:
-    with st.expander("⚠️ 抓價/資料警告（點開看哪些代碼抓不到）", expanded=False):
-        for e in errors:
-            st.write("-", e)
+return_rate_approx = (total_profit / invested_approx * 100) if invest
