@@ -5,7 +5,7 @@ import plotly.express as px
 import json
 import os
 from datetime import datetime, time
-import pytz 
+import pytz
 
 # --- 設定網頁標題與版面 ---
 st.set_page_config(page_title="我的資產儀表板", layout="wide")
@@ -21,7 +21,7 @@ def load_settings():
         "btc": 0.012498, "btc_cost": 79905.3,
         "eth": 0.0536, "eth_cost": 2961.40,
         "sol": 4.209, "sol_cost": 131.0,
-        # [已實現損益]
+        # [已實現損益] - 新增欄位
         "realized_profit_twd": 0.0,       # 台股 (TWD)
         "realized_profit_us_stock": 0.0,  # 美股 (USD)
         "realized_profit_crypto": 0.0     # 加密貨幣 (USD)
@@ -30,6 +30,7 @@ def load_settings():
         try:
             with open(DATA_FILE, "r") as f:
                 saved = json.load(f)
+                # 確保舊版 json 讀取時不會報錯，補上缺少的欄位
                 return {**default_data, **saved}
         except:
             pass
@@ -60,27 +61,27 @@ us_portfolio = [
 st.sidebar.header("⚙️ 資產設定")
 saved_data = load_settings()
 
-# [已實現損益輸入區]
+# [已實現損益輸入區] - 新增區塊
 with st.sidebar.expander("💰 已實現損益 (落袋為安)", expanded=True):
     realized_twd = st.number_input(
         "🇹🇼 台股已實現獲利 (TWD)", 
-        value=float(saved_data.get("realized_profit_twd", 3455)), 
+        value=float(saved_data.get("realized_profit_twd", 0.0)), 
         step=100.0,
-        help="輸入台股券商顯示的已實現損益 (例如: 3455)"
+        help="輸入台股券商顯示的已實現損益總額"
     )
     
     realized_us_stock = st.number_input(
         "🇺🇸 美股已實現獲利 (USD)", 
-        value=float(saved_data.get("realized_profit_us_stock", 14.63)), 
+        value=float(saved_data.get("realized_profit_us_stock", 0.0)), 
         step=10.0,
-        help="輸入美股券商顯示的 Realized P/L (例如: 50.5)"
+        help="輸入美股券商顯示的 Realized P/L (USD)"
     )
     
     realized_crypto = st.number_input(
         "🪙 加密貨幣已實現獲利 (USD)", 
         value=float(saved_data.get("realized_profit_crypto", 0.0)), 
         step=10.0,
-        help="輸入交易所顯示的 Realized P/L (例如: 120)"
+        help="輸入交易所顯示的 Realized P/L (USD)"
     )
 
 st.sidebar.subheader("💵 法幣現金")
@@ -90,7 +91,7 @@ cash_twd_max = st.sidebar.number_input("🟣 MAX 交易所 (TWD)", value=float(s
 cash_usd = st.sidebar.number_input("🇺🇸 美金 (USD)", value=float(saved_data["usd"]), step=100.0)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🪙 加密貨幣設定")
+st.sidebar.subheader("🪙 加密貨幣持倉")
 c1, c2 = st.sidebar.columns(2)
 btc_qty = c1.number_input("BTC 顆數", value=float(saved_data["btc"]), step=0.00000001, format="%.8f")
 btc_cost = c2.number_input("BTC 均價(USD)", value=float(saved_data.get("btc_cost", 0.0)), step=100.0, format="%.2f")
@@ -107,10 +108,13 @@ sol_cost = c6.number_input("SOL 均價(USD)", value=float(saved_data.get("sol_co
 current_data = {
     "twd_bank": cash_twd_bank, "twd_physical": cash_twd_physical, "twd_max": cash_twd_max, "usd": cash_usd,
     "btc": btc_qty, "btc_cost": btc_cost, "eth": eth_qty, "eth_cost": eth_cost, "sol": sol_qty, "sol_cost": sol_cost,
+    # 新增儲存已實現損益
     "realized_profit_twd": realized_twd,
     "realized_profit_us_stock": realized_us_stock,
     "realized_profit_crypto": realized_crypto
 }
+
+# 只有當數據變更時才寫入檔案 (避免頻繁 I/O)
 if current_data != saved_data:
     save_settings(current_data)
 
@@ -118,6 +122,7 @@ if current_data != saved_data:
 @st.cache_data(ttl=30) 
 def get_data_and_calculate(btc_d, eth_d, sol_d):
     try:
+        # 取得即時匯率
         usdtwd = yf.Ticker("USDTWD=X").history(period="1d")['Close'].iloc[-1]
     except:
         usdtwd = 32.5 
@@ -140,6 +145,8 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
+                
+                # 判斷是否計入今日損益
                 last_dt = hist.index[-1]
                 if last_dt.tzinfo is None:
                     last_dt = tw_tz.localize(last_dt)
@@ -147,6 +154,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     last_dt = last_dt.astimezone(tw_tz)
                 data_date_str = last_dt.strftime('%Y-%m-%d')
                 include_in_daily = (data_date_str == today_tw_str) or is_tw_market_active
+
                 if len(hist) >= 2:
                     change_price = price - hist['Close'].iloc[-2]
                     change_pct = (change_price / hist['Close'].iloc[-2]) * 100
@@ -161,7 +169,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                 data_list.append({
                     "代號": item['name'], "類型": "台股", "現價": price, "漲跌": change_price,
                     "幅度%": change_pct, "今日損益": change_price * item['shares'],
-                    "市值": market_val, "總損益": profit, "總報酬%": profit_pct, "include_in_daily": include_in_daily
+                    "市值": market_val, "未實現損益": profit, "未實現報酬%": profit_pct, "include_in_daily": include_in_daily
                 })
         except: pass
 
@@ -174,6 +182,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
             
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
+                
                 last_dt = hist.index[-1]
                 if last_dt.tzinfo is None:
                     last_dt = tw_tz.localize(last_dt) 
@@ -181,6 +190,7 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     last_dt = last_dt.astimezone(tw_tz)
                 data_date_str = last_dt.strftime('%Y-%m-%d')
                 include_in_daily = (data_date_str == today_tw_str) or is_us_market_active
+
                 if len(hist) >= 2:
                     change_price = price - hist['Close'].iloc[-2]
                     change_pct = (change_price / hist['Close'].iloc[-2]) * 100
@@ -195,8 +205,8 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                 data_list.append({
                     "代號": item['code'], "類型": "美股", "現價": price, "漲跌": change_price,        
                     "幅度%": change_pct, "今日損益": (change_price * item['shares']) * usdtwd,
-                    "市值": market_val_usd * usdtwd, "總損益": profit_usd * usdtwd,
-                    "總報酬%": profit_pct, "include_in_daily": include_in_daily
+                    "市值": market_val_usd * usdtwd, "未實現損益": profit_usd * usdtwd,
+                    "未實現報酬%": profit_pct, "include_in_daily": include_in_daily
                 })
         except: pass
 
@@ -228,8 +238,8 @@ def get_data_and_calculate(btc_d, eth_d, sol_d):
                     data_list.append({
                         "代號": info['name'], "類型": "Crypto", "現價": price_usd, "漲跌": change_usd,
                         "幅度%": change_pct, "今日損益": (change_usd * info['qty']) * usdtwd,
-                        "市值": market_val_usd * usdtwd, "總損益": profit_usd * usdtwd, 
-                        "總報酬%": profit_pct, "include_in_daily": True 
+                        "市值": market_val_usd * usdtwd, "未實現損益": profit_usd * usdtwd, 
+                        "未實現報酬%": profit_pct, "include_in_daily": True 
                     })
             except: pass
             
@@ -251,7 +261,7 @@ sol_data = {'qty': sol_qty, 'cost': sol_cost}
 
 df, rate = get_data_and_calculate(btc_data, eth_data, sol_data)
 
-# 分類數據
+# 分類數據 (為了計算市值)
 crypto_df = df[df['類型'] == 'Crypto']
 stock_df = df[df['類型'] != 'Crypto']
 crypto_total_val = crypto_df['市值'].sum() if not crypto_df.empty else 0
@@ -259,30 +269,35 @@ stock_total_val = stock_df['市值'].sum() if not stock_df.empty else 0
 
 total_cash_twd_only = cash_twd_bank + cash_twd_physical + cash_twd_max
 cash_total_val = total_cash_twd_only + (cash_usd * rate)
-invested_assets = stock_total_val + crypto_total_val
+
+# 總資產 = 股票市值 + 幣圈市值 + 現金總值
 total_assets = stock_total_val + crypto_total_val + cash_total_val
 
-# --- [關鍵計算升級] 總獲利分類計算 ---
-# 1. 計算各市場的「帳面損益 (Unrealized)」(從 df 抓)
-unrealized_tw = df[df['類型'] == '台股']['總損益'].sum()
-unrealized_us = df[df['類型'] == '美股']['總損益'].sum()
-unrealized_crypto = df[df['類型'] == 'Crypto']['總損益'].sum()
+# --- [關鍵計算：未實現 vs 已實現] ---
+# 1. 未實現 (Unrealized) - 從現在的持倉算出來的
+unrealized_tw = df[df['類型'] == '台股']['未實現損益'].sum()
+unrealized_us = df[df['類型'] == '美股']['未實現損益'].sum()
+unrealized_crypto = df[df['類型'] == 'Crypto']['未實現損益'].sum()
 
-# 2. 計算各市場的「總獲利 (Total)」= 帳面 + 已實現
-# 注意：美股和幣圈的已實現是 USD，要乘匯率
-profit_tw_total = unrealized_tw + realized_twd
-profit_us_total = unrealized_us + (realized_us_stock * rate)
-profit_crypto_total = unrealized_crypto + (realized_crypto * rate)
+# 2. 已實現 (Realized) - 從側邊欄輸入的 (美金部分換算成台幣)
+realized_tw_twd = realized_twd
+realized_us_twd = realized_us_stock * rate
+realized_crypto_twd = realized_crypto * rate
 
-# 3. 整體總獲利
+# 3. 總獲利 (Total Profit) = 未實現 + 已實現
+profit_tw_total = unrealized_tw + realized_tw_twd
+profit_us_total = unrealized_us + realized_us_twd
+profit_crypto_total = unrealized_crypto + realized_crypto_twd
 total_profit = profit_tw_total + profit_us_total + profit_crypto_total
 
-# 報酬率計算 (還原成本法)
-total_realized_twd = realized_twd + ((realized_us_stock + realized_crypto) * rate)
-invested_capital = (stock_total_val + crypto_total_val + total_realized_twd) - total_profit
-total_return_rate = 0 
-if invested_capital > 0:
-    total_return_rate = (total_profit / invested_capital) * 100
+# 4. 投資本金 (Invested Capital)
+# 邏輯：目前持倉市值 - 未實現獲利 = 目前持倉成本
+# 這裡不把已實現獲利扣掉，因為我們想看的是「目前還在場內的錢」+「已經落袋的錢」所創造的總報酬
+# 簡單版 ROI = 總獲利 / (目前持倉成本 + 已平倉成本(這裡較難估算，暫用目前持倉成本當分母，或單純顯示金額))
+# 為了準確顯示，我們這裡主要展示「金額」，報酬率針對「未實現」部分展示較準確。
+# 但為了顯示總報酬率，我們可以用：總獲利 / (總資產 - 總獲利) 來近似「總投入本金」
+total_invested_capital = total_assets - total_profit # 近似值
+total_return_rate = (total_profit / total_invested_capital * 100) if total_invested_capital > 0 else 0
 
 today_change_total = df[df['include_in_daily'] == True]['今日損益'].sum()
 today_change_pct = (today_change_total / total_assets) * 100 if total_assets != 0 else 0
@@ -292,26 +307,58 @@ df['佔比%'] = (df['市值'] / total_assets) * 100
 # --- 6. 顯示指標 (第一排：總覽) ---
 col1, col2, col3, col4, col5, col6 = st.columns(6)
 col1.metric("🏆 總資產", f"${total_assets:,.0f}")
-col2.metric("📈 投資總資產", f"${invested_assets:,.0f}")
-col3.metric("💰 整體總獲利", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}%")
-col4.metric("📅 今日變動", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
-col5.metric("💵 現金部位", f"${cash_total_val:,.0f}")
-col6.metric("🪙 加密市值", f"${crypto_total_val:,.0f}")
+col2.metric("💰 總獲利 (含已實現)", f"${total_profit:,.0f}", delta=f"{total_return_rate:.2f}% (近似)")
+col3.metric("📅 今日變動", f"${today_change_total:,.0f}", delta=f"{today_change_pct:.2f}%")
+col4.metric("💵 現金部位", f"${cash_total_val:,.0f}")
+col5.metric("📈 股票市值", f"${stock_total_val:,.0f}")
+col6.metric("🪙 幣圈市值", f"${crypto_total_val:,.0f}")
 
-# --- [新功能] 顯示獲利細項 (第二排：各市場獲利) ---
-st.markdown("### 📊 獲利貢獻分析 (含已實現)")
-sub_c1, sub_c2, sub_c3 = st.columns(3)
-sub_c1.metric("🇹🇼 台股總獲利", f"${profit_tw_total:,.0f}", help=f"帳面: ${unrealized_tw:,.0f} + 已實現: ${realized_twd:,.0f}")
-sub_c2.metric("🇺🇸 美股總獲利", f"${profit_us_total:,.0f}", help=f"帳面: ${unrealized_us:,.0f} + 已實現: ${(realized_us_stock * rate):,.0f} (TWD)")
-sub_c3.metric("🪙 幣圈總獲利", f"${profit_crypto_total:,.0f}", help=f"帳面: ${unrealized_crypto:,.0f} + 已實現: ${(realized_crypto * rate):,.0f} (TWD)")
+st.markdown("---")
 
-st.caption(f"註：美股與幣圈已自動依匯率 (1:{rate:.2f}) 換算台幣。")
+# --- [新功能] 獲利結構詳細分析 (第二排) ---
+st.subheader("📊 損益結構分析 (TWD)")
+st.caption("滑鼠移到數字上可查看詳細公式：`未實現 (帳面)` + `已實現 (落袋)`")
+
+sub_c1, sub_c2, sub_c3, sub_c4 = st.columns(4)
+
+# 台股
+with sub_c1:
+    st.info(f"**🇹🇼 台股總損益**\n\n### ${profit_tw_total:,.0f}")
+    st.markdown(f"""
+    - 📉 未實現: **${unrealized_tw:,.0f}**
+    - 💰 已實現: **${realized_tw_twd:,.0f}**
+    """)
+
+# 美股
+with sub_c2:
+    st.info(f"**🇺🇸 美股總損益**\n\n### ${profit_us_total:,.0f}")
+    st.markdown(f"""
+    - 📉 未實現: **${unrealized_us:,.0f}**
+    - 💰 已實現: **${realized_us_twd:,.0f}**
+    """)
+
+# 幣圈
+with sub_c3:
+    st.info(f"**🪙 幣圈總損益**\n\n### ${profit_crypto_total:,.0f}")
+    st.markdown(f"""
+    - 📉 未實現: **${unrealized_crypto:,.0f}**
+    - 💰 已實現: **${realized_crypto_twd:,.0f}**
+    """)
+
+# 匯率資訊
+with sub_c4:
+    st.warning(f"**💱 匯率參考**")
+    st.markdown(f"""
+    - USD/TWD: **{rate:.2f}**
+    - 美股與幣圈損益皆以此匯率換算
+    """)
+
 st.divider()
 
 # --- 7. 圖表與表格 ---
 col_chart, col_table = st.columns([0.35, 0.65])
 with col_chart:
-    st.subheader("📊 資產配置")
+    st.subheader("🍰 資產配置圓餅圖")
     chart_df = df[['代號', '市值']].copy()
     if cash_twd_bank > 0: chart_df = pd.concat([chart_df, pd.DataFrame([{'代號': '銀行存款', '市值': cash_twd_bank}])], ignore_index=True)
     if cash_twd_physical > 0: chart_df = pd.concat([chart_df, pd.DataFrame([{'代號': '實體現鈔', '市值': cash_twd_physical}])], ignore_index=True)
@@ -322,11 +369,13 @@ with col_chart:
     st.plotly_chart(fig, use_container_width=True)
 
 with col_table:
-    st.subheader("📋 持股與幣圈詳細行情")
-    display_df = df[['代號', '類型', '現價', '漲跌', '幅度%', '市值', '佔比%', '今日損益', '總報酬%', '總損益']].copy()
-    styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '總報酬%', '總損益']).format({
+    st.subheader("📋 持倉詳細行情 (未實現)")
+    # 表格只顯示「未實現」的部分，因為這是目前持有的
+    display_df = df[['代號', '類型', '現價', '漲跌', '幅度%', '市值', '佔比%', '今日損益', '未實現報酬%', '未實現損益']].copy()
+    
+    styled_df = display_df.style.map(color_tw_style, subset=['漲跌', '幅度%', '今日損益', '未實現報酬%', '未實現損益']).format({
             '現價': '{:.2f}', '漲跌': '{:+.2f}', '幅度%': '{:+.2f}%', '市值': '${:,.0f}',
-            '今日損益': '${:,.0f}', '佔比%': '{:.1f}%', '總報酬%': '{:+.2f}%', '總損益': '${:,.0f}' 
+            '今日損益': '${:,.0f}', '佔比%': '{:.1f}%', '未實現報酬%': '{:+.2f}%', '未實現損益': '${:,.0f}' 
         })
     
     st.dataframe(
