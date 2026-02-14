@@ -64,8 +64,8 @@ st.sidebar.header("⚙️ 資產設定")
 saved = load_settings()
 
 with st.sidebar.expander("💰 已實現損益 (落袋為安)", expanded=True):
-    realized_twd = st.number_input("🇹🇼 台股已實現獲利 (TWD)", value=float(saved.get("realized_profit_twd", 0.0)), step=100.0)
-    realized_us_stock = st.number_input("🇺🇸 美股已實現獲利 (USD)", value=float(saved.get("realized_profit_us_stock", 0.0)), step=10.0)
+    realized_twd = st.number_input("🇹🇼 台股已實現獲利 (TWD)", value=float(saved.get("realized_profit_twd", 97747.0)), step=100.0)
+    realized_us_stock = st.number_input("🇺🇸 美股已實現獲利 (USD)", value=float(saved.get("realized_profit_us_stock", -45)), step=10.0)
     realized_crypto = st.number_input("🪙 加密貨幣已實現獲利 (USD)", value=float(saved.get("realized_profit_crypto", 0.0)), step=10.0)
 
 st.sidebar.subheader("💵 法幣現金")
