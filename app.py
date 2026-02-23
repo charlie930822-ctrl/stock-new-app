@@ -22,8 +22,8 @@ def load_settings():
         "btc": 0.012498, "btc_cost": 79905.3,
         "eth": 0.0536, "eth_cost": 2961.40,
         "sol": 4.209, "sol_cost": 131.0,
-        "realized_profit_twd": 0.0,
-        "realized_profit_us_stock": 0.0,
+        "realized_profit_twd": 97747.0,
+        "realized_profit_us_stock": -45,
         "realized_profit_crypto": 0.0
     }
     if os.path.exists(DATA_FILE):
