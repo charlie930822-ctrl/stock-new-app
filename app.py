@@ -107,30 +107,30 @@ def get_usdtwd():
     candidates = ["TWD=X", "USDTWD=X"]
     for c in candidates:
         try:
-            df = yf.download(c, period="10d", interval="1d", progress=False)
-            s = df.get("Close", pd.Series()).dropna()
-            if len(s) > 0:
-                return float(s.iloc[-1]), c
+            # 改用 Ticker().history() 比較穩定
+            ticker = yf.Ticker(c)
+            df = ticker.history(period="5d", interval="1d")
+            if not df.empty and "Close" in df.columns:
+                s = df["Close"].dropna()
+                if len(s) > 0:
+                    return float(s.iloc[-1]), c
         except:
             pass
     return 32.5, "fallback(32.5)"
 
 # =========================
-# 5) 新的抓價方式：昨收用日K、盤中用1m
+# 5) 新的抓價方式：改用 yf.Ticker().history 提高穩定度
 # =========================
 @st.cache_data(ttl=30)
 def fetch_prev_close_and_live(code: str, market_tz: str):
-    """
-    回傳 dict:
-    {
-      prev_close, last_daily_close,
-      live_price, live_ts_local, live_date_local,
-      has_live_today (盤中資料是否是市場時區的今天)
-    }
-    """
-    # 日K：抓昨日/今日(若收盤後寫入)的 close
-    df_d = yf.download(code, period="15d", interval="1d", progress=False)
-    dclose = df_d.get("Close", pd.Series()).dropna()
+    ticker = yf.Ticker(code)
+    
+    # 1. 日K：抓昨日/今日的 close (放寬到 1mo 確保一定有資料)
+    df_d = ticker.history(period="1mo", interval="1d")
+    if df_d.empty or "Close" not in df_d.columns:
+        raise ValueError(f"無法取得日K資料")
+        
+    dclose = df_d["Close"].dropna()
     if len(dclose) >= 2:
         prev_close = float(dclose.iloc[-2])
         last_daily_close = float(dclose.iloc[-1])
@@ -138,7 +138,7 @@ def fetch_prev_close_and_live(code: str, market_tz: str):
         prev_close = float(dclose.iloc[-1])
         last_daily_close = prev_close
     else:
-        raise ValueError("沒拿到日K Close")
+        raise ValueError("日K的 Close 欄位無有效數據")
 
     # 預設：盤中拿不到就退回日K最後 close
     live_price = last_daily_close
@@ -146,25 +146,27 @@ def fetch_prev_close_and_live(code: str, market_tz: str):
     live_date_local = None
     has_live_today = False
 
-    # 盤中：1m（如果 yfinance 有給就用它當現價/今日損益）
+    # 2. 盤中：1m (期間改為 5d，避免週末或長假 period="1d" 抓不到東西)
     try:
-        df_i = yf.download(code, period="1d", interval="1m", progress=False)
-        iclose = df_i.get("Close", pd.Series()).dropna()
-        if len(iclose) > 0:
-            live_price = float(iclose.iloc[-1])
+        df_i = ticker.history(period="5d", interval="1m")
+        if not df_i.empty and "Close" in df_i.columns:
+            iclose = df_i["Close"].dropna()
+            if len(iclose) > 0:
+                live_price = float(iclose.iloc[-1])
+                ts = iclose.index[-1]
+                
+                # 安全地處理時區轉換
+                if ts.tzinfo is None:
+                    ts = ts.tz_localize("UTC")
+                
+                ts_local = ts.tz_convert(ZoneInfo(market_tz))
+                live_ts_local = ts_local
+                live_date_local = ts_local.date()
 
-            ts = pd.Timestamp(iclose.index[-1])
-            # 很多情況 index 沒帶 tz，當成 UTC 再轉
-            if ts.tzinfo is None:
-                ts = ts.tz_localize("UTC")
-            ts_local = ts.tz_convert(ZoneInfo(market_tz))
-            live_ts_local = ts_local
-            live_date_local = ts_local.date()
-
-            today_local = pd.Timestamp.now(tz=ZoneInfo(market_tz)).date()
-            has_live_today = (live_date_local == today_local)
-    except:
-        pass
+                today_local = pd.Timestamp.now(tz=ZoneInfo(market_tz)).date()
+                has_live_today = (live_date_local == today_local)
+    except Exception:
+        pass # 如果 1m 真的抓不到（例如某些冷門 ETF），就安靜地退回使用日K資料
 
     return {
         "prev_close": prev_close,
@@ -178,175 +180,33 @@ def fetch_prev_close_and_live(code: str, market_tz: str):
 @st.cache_data(ttl=60)
 def fetch_last_two_closes_with_date(codes):
     """
-    幣圈保留你原本邏輯：用日K兩天 close 近似 24h
-    回傳 dict: {code: (last_close, prev_close, last_date)}
+    幣圈：同樣改為 Ticker().history() 迴圈抓取，避免 yf.download 的 MultiIndex 報錯
     """
     out = {}
     errors = []
     for code in codes:
         try:
-            df = yf.download(code, period="15d", interval="1d", progress=False)
-            s = df.get("Close", pd.Series()).dropna()
-            if len(s) >= 2:
-                last_close = float(s.iloc[-1])
-                prev_close = float(s.iloc[-2])
-                last_date = pd.Timestamp(s.index[-1]).date()
-                out[code] = (last_close, prev_close, last_date)
-            elif len(s) == 1:
-                last_close = float(s.iloc[-1])
-                last_date = pd.Timestamp(s.index[-1]).date()
-                out[code] = (last_close, last_close, last_date)
+            ticker = yf.Ticker(code)
+            df = ticker.history(period="15d", interval="1d")
+            if not df.empty and "Close" in df.columns:
+                s = df["Close"].dropna()
+                if len(s) >= 2:
+                    last_close = float(s.iloc[-1])
+                    prev_close = float(s.iloc[-2])
+                    last_date = s.index[-1].date()
+                    out[code] = (last_close, prev_close, last_date)
+                elif len(s) == 1:
+                    last_close = float(s.iloc[-1])
+                    last_date = s.index[-1].date()
+                    out[code] = (last_close, last_close, last_date)
+                else:
+                    errors.append(f"{code}：無有效收盤價")
             else:
-                errors.append(f"{code}：沒拿到 Close")
+                errors.append(f"{code}：無法取得歷史資料")
         except Exception as e:
-            errors.append(f"{code} 抓價失敗：{e}")
+            errors.append(f"{code} 抓價失敗：{str(e)}")
     return out, errors
-
-@st.cache_data(ttl=60)
-def build_df(tw_portfolio, us_portfolio, crypto_inputs):
-    errors = []
-    rate, rate_src = get_usdtwd()
-
-    rows = []
-
-    # -------------------------
-    # 台股（用 1m 盤中算今日損益）
-    # -------------------------
-    for it in tw_portfolio:
-        code = it["code"]
-        try:
-            q = fetch_prev_close_and_live(code, "Asia/Taipei")
-        except Exception as e:
-            errors.append(f"台股抓不到：{code} ({e})")
-            continue
-
-        prev_close = q["prev_close"]
-        last_daily_close = q["last_daily_close"]
-        live_price = q["live_price"]
-        has_live_today = q["has_live_today"]
-
-        # 「上一交易日」：用日K last - prev（固定是上一根日K的變動）
-        prev_change = last_daily_close - prev_close
-        prev_change_pct = (prev_change / prev_close * 100) if prev_close else 0.0
-
-        # 「今日損益」：盤中用 live - prev_close；拿不到盤中就歸零（避免休市誤判）
-        today_change = (live_price - prev_close) if has_live_today else 0.0
-        today_pnl_twd = today_change * it["shares"]
-
-        mkt_status = "盤中/今日已更新" if has_live_today else "休市/非今日盤中資料"
-
-        mv = live_price * it["shares"]
-        cost = it["cost"] * it["shares"]
-        unreal = mv - cost
-        unreal_pct = (unreal / cost * 100) if cost else 0.0
-
-        quote_day = q["live_date_local"] if q["live_date_local"] is not None else pd.Timestamp.now(tz=ZoneInfo("Asia/Taipei")).date()
-
-        rows.append({
-            "代號": it["name"],
-            "類型": "台股",
-            "幣別": "TWD",
-            "現價": live_price,
-            "上一交易日漲跌": prev_change,
-            "上一交易日幅度%": prev_change_pct,
-            "報價日": str(quote_day),
-            "市場狀態": mkt_status,
-            "今日損益(TWD)": today_pnl_twd,
-            "市值(TWD)": mv,
-            "未實現損益(TWD)": unreal,
-            "未實現報酬%": unreal_pct,
-        })
-
-    # -------------------------
-    # 美股（用 1m 盤中算今日損益，最後換成TWD）
-    # -------------------------
-    for it in us_portfolio:
-        code = it["code"]
-        try:
-            q = fetch_prev_close_and_live(code, "America/New_York")
-        except Exception as e:
-            errors.append(f"美股抓不到：{code} ({e})")
-            continue
-
-        prev_close = q["prev_close"]
-        last_daily_close = q["last_daily_close"]
-        live_price = q["live_price"]
-        has_live_today = q["has_live_today"]
-
-        prev_change = last_daily_close - prev_close
-        prev_change_pct = (prev_change / prev_close * 100) if prev_close else 0.0
-
-        today_change_usd = (live_price - prev_close) if has_live_today else 0.0
-        today_pnl_twd = (today_change_usd * it["shares"]) * rate
-
-        mkt_status = "盤中/今日已更新" if has_live_today else "休市/非今日盤中資料"
-
-        mv_usd = live_price * it["shares"]
-        cost_usd = it["cost"] * it["shares"]
-        unreal_usd = mv_usd - cost_usd
-        unreal_pct = (unreal_usd / cost_usd * 100) if cost_usd else 0.0
-
-        quote_day = q["live_date_local"] if q["live_date_local"] is not None else pd.Timestamp.now(tz=ZoneInfo("America/New_York")).date()
-
-        rows.append({
-            "代號": code,
-            "類型": "美股",
-            "幣別": "USD",
-            "現價": live_price,
-            "上一交易日漲跌": prev_change,
-            "上一交易日幅度%": prev_change_pct,
-            "報價日": str(quote_day),
-            "市場狀態": mkt_status,
-            "今日損益(TWD)": today_pnl_twd,
-            "市值(TWD)": mv_usd * rate,
-            "未實現損益(TWD)": unreal_usd * rate,
-            "未實現報酬%": unreal_pct,
-        })
-
-    # -------------------------
-    # 幣圈（24h：保留你原本用日K兩天 close 近似）
-    # -------------------------
-    crypto_codes = list(crypto_inputs.keys())
-    cr_prices, cr_err = fetch_last_two_closes_with_date(crypto_codes)
-    errors += cr_err
-
-    for code, info in crypto_inputs.items():
-        qty = float(info["qty"])
-        cost = float(info["cost"])
-        if qty <= 0:
-            continue
-        if code not in cr_prices:
-            errors.append(f"幣圈抓不到：{code}")
-            continue
-
-        last_close, prev_close, last_date = cr_prices[code]
-
-        change = last_close - prev_close
-        change_pct = (change / prev_close * 100) if prev_close else 0.0
-
-        mv_usd = last_close * qty
-        cost_usd = cost * qty
-        unreal_usd = mv_usd - cost_usd
-        unreal_pct = (unreal_usd / cost_usd * 100) if cost_usd else 0.0
-
-        rows.append({
-            "代號": code.replace("-USD", ""),
-            "類型": "Crypto(24h)",
-            "幣別": "USD",
-            "現價": last_close,
-            "上一交易日漲跌": change,
-            "上一交易日幅度%": change_pct,
-            "報價日": str(last_date),
-            "市場狀態": "24h",
-            "今日損益(TWD)": (change * qty) * rate,
-            "市值(TWD)": mv_usd * rate,
-            "未實現損益(TWD)": unreal_usd * rate,
-            "未實現報酬%": unreal_pct,
-        })
-
-    df = pd.DataFrame(rows)
-    return df, rate, rate_src, errors
-
+    
 # =========================
 # 6) 執行計算
 # =========================
