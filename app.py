@@ -100,15 +100,7 @@ if current != saved:
     save_settings(current)
 
 # =========================
-# 4) 工具：判斷「今天是否有新的一根日K」
-# =========================
-def is_today_by_tz(last_date, tz_name: str) -> bool:
-    """用市場時區判斷 last_date 是否等於該時區的今天日期"""
-    today = pd.Timestamp.now(tz=ZoneInfo(tz_name)).date()
-    return last_date == today
-
-# =========================
-# 5) 穩定抓匯率 & 價格（逐檔抓，不會整包死）
+# 4) 匯率
 # =========================
 @st.cache_data(ttl=120)
 def get_usdtwd():
@@ -123,11 +115,71 @@ def get_usdtwd():
             pass
     return 32.5, "fallback(32.5)"
 
+# =========================
+# 5) 新的抓價方式：昨收用日K、盤中用1m
+# =========================
+@st.cache_data(ttl=30)
+def fetch_prev_close_and_live(code: str, market_tz: str):
+    """
+    回傳 dict:
+    {
+      prev_close, last_daily_close,
+      live_price, live_ts_local, live_date_local,
+      has_live_today (盤中資料是否是市場時區的今天)
+    }
+    """
+    # 日K：抓昨日/今日(若收盤後寫入)的 close
+    df_d = yf.download(code, period="15d", interval="1d", progress=False)
+    dclose = df_d.get("Close", pd.Series()).dropna()
+    if len(dclose) >= 2:
+        prev_close = float(dclose.iloc[-2])
+        last_daily_close = float(dclose.iloc[-1])
+    elif len(dclose) == 1:
+        prev_close = float(dclose.iloc[-1])
+        last_daily_close = prev_close
+    else:
+        raise ValueError("沒拿到日K Close")
+
+    # 預設：盤中拿不到就退回日K最後 close
+    live_price = last_daily_close
+    live_ts_local = None
+    live_date_local = None
+    has_live_today = False
+
+    # 盤中：1m（如果 yfinance 有給就用它當現價/今日損益）
+    try:
+        df_i = yf.download(code, period="1d", interval="1m", progress=False)
+        iclose = df_i.get("Close", pd.Series()).dropna()
+        if len(iclose) > 0:
+            live_price = float(iclose.iloc[-1])
+
+            ts = pd.Timestamp(iclose.index[-1])
+            # 很多情況 index 沒帶 tz，當成 UTC 再轉
+            if ts.tzinfo is None:
+                ts = ts.tz_localize("UTC")
+            ts_local = ts.tz_convert(ZoneInfo(market_tz))
+            live_ts_local = ts_local
+            live_date_local = ts_local.date()
+
+            today_local = pd.Timestamp.now(tz=ZoneInfo(market_tz)).date()
+            has_live_today = (live_date_local == today_local)
+    except:
+        pass
+
+    return {
+        "prev_close": prev_close,
+        "last_daily_close": last_daily_close,
+        "live_price": live_price,
+        "live_ts_local": live_ts_local,
+        "live_date_local": live_date_local,
+        "has_live_today": has_live_today
+    }
+
 @st.cache_data(ttl=60)
 def fetch_last_two_closes_with_date(codes):
     """
+    幣圈保留你原本邏輯：用日K兩天 close 近似 24h
     回傳 dict: {code: (last_close, prev_close, last_date)}
-    - last_date：最後一根日K的日期（用來判斷是否是「今天」）
     """
     out = {}
     errors = []
@@ -153,53 +205,51 @@ def fetch_last_two_closes_with_date(codes):
 @st.cache_data(ttl=60)
 def build_df(tw_portfolio, us_portfolio, crypto_inputs):
     errors = []
-
     rate, rate_src = get_usdtwd()
-
-    tw_codes = [x["code"] for x in tw_portfolio]
-    us_codes = [x["code"] for x in us_portfolio]
-    crypto_codes = list(crypto_inputs.keys())
-
-    tw_prices, tw_err = fetch_last_two_closes_with_date(tw_codes)
-    us_prices, us_err = fetch_last_two_closes_with_date(us_codes)
-    cr_prices, cr_err = fetch_last_two_closes_with_date(crypto_codes)
-    errors += tw_err + us_err + cr_err
 
     rows = []
 
     # -------------------------
-    # 台股（TWD）
+    # 台股（用 1m 盤中算今日損益）
     # -------------------------
     for it in tw_portfolio:
         code = it["code"]
-        if code not in tw_prices:
-            errors.append(f"台股抓不到：{code}")
+        try:
+            q = fetch_prev_close_and_live(code, "Asia/Taipei")
+        except Exception as e:
+            errors.append(f"台股抓不到：{code} ({e})")
             continue
 
-        last_close, prev_close, last_date = tw_prices[code]
+        prev_close = q["prev_close"]
+        last_daily_close = q["last_daily_close"]
+        live_price = q["live_price"]
+        has_live_today = q["has_live_today"]
 
-        # 這裡的漲跌/幅度：永遠代表「上一交易日」(last - prev)
-        prev_change = last_close - prev_close
+        # 「上一交易日」：用日K last - prev（固定是上一根日K的變動）
+        prev_change = last_daily_close - prev_close
         prev_change_pct = (prev_change / prev_close * 100) if prev_close else 0.0
 
-        # 今日損益：只有「最後一根日K日期 == 台灣今天」才算，否則歸零（週末/休市不會冒出今日損益）
-        is_today = is_today_by_tz(last_date, "Asia/Taipei")
-        today_pnl_twd = (prev_change * it["shares"]) if is_today else 0.0
-        mkt_status = "今日已更新" if is_today else "休市/非今日資料"
+        # 「今日損益」：盤中用 live - prev_close；拿不到盤中就歸零（避免休市誤判）
+        today_change = (live_price - prev_close) if has_live_today else 0.0
+        today_pnl_twd = today_change * it["shares"]
 
-        mv = last_close * it["shares"]
+        mkt_status = "盤中/今日已更新" if has_live_today else "休市/非今日盤中資料"
+
+        mv = live_price * it["shares"]
         cost = it["cost"] * it["shares"]
         unreal = mv - cost
         unreal_pct = (unreal / cost * 100) if cost else 0.0
+
+        quote_day = q["live_date_local"] if q["live_date_local"] is not None else pd.Timestamp.now(tz=ZoneInfo("Asia/Taipei")).date()
 
         rows.append({
             "代號": it["name"],
             "類型": "台股",
             "幣別": "TWD",
-            "現價": last_close,
+            "現價": live_price,
             "上一交易日漲跌": prev_change,
             "上一交易日幅度%": prev_change_pct,
-            "報價日": str(last_date),
+            "報價日": str(quote_day),
             "市場狀態": mkt_status,
             "今日損益(TWD)": today_pnl_twd,
             "市值(TWD)": mv,
@@ -208,37 +258,44 @@ def build_df(tw_portfolio, us_portfolio, crypto_inputs):
         })
 
     # -------------------------
-    # 美股（USD -> 顯示換成 TWD）
+    # 美股（用 1m 盤中算今日損益，最後換成TWD）
     # -------------------------
     for it in us_portfolio:
         code = it["code"]
-        if code not in us_prices:
-            errors.append(f"美股抓不到：{code}")
+        try:
+            q = fetch_prev_close_and_live(code, "America/New_York")
+        except Exception as e:
+            errors.append(f"美股抓不到：{code} ({e})")
             continue
 
-        last_close, prev_close, last_date = us_prices[code]
+        prev_close = q["prev_close"]
+        last_daily_close = q["last_daily_close"]
+        live_price = q["live_price"]
+        has_live_today = q["has_live_today"]
 
-        prev_change = last_close - prev_close
+        prev_change = last_daily_close - prev_close
         prev_change_pct = (prev_change / prev_close * 100) if prev_close else 0.0
 
-        # 美股用紐約時間判斷是否「今天有更新」
-        is_today = is_today_by_tz(last_date, "America/New_York")
-        today_pnl_twd = ((prev_change * it["shares"]) * rate) if is_today else 0.0
-        mkt_status = "今日已更新" if is_today else "休市/非今日資料"
+        today_change_usd = (live_price - prev_close) if has_live_today else 0.0
+        today_pnl_twd = (today_change_usd * it["shares"]) * rate
 
-        mv_usd = last_close * it["shares"]
+        mkt_status = "盤中/今日已更新" if has_live_today else "休市/非今日盤中資料"
+
+        mv_usd = live_price * it["shares"]
         cost_usd = it["cost"] * it["shares"]
         unreal_usd = mv_usd - cost_usd
         unreal_pct = (unreal_usd / cost_usd * 100) if cost_usd else 0.0
+
+        quote_day = q["live_date_local"] if q["live_date_local"] is not None else pd.Timestamp.now(tz=ZoneInfo("America/New_York")).date()
 
         rows.append({
             "代號": code,
             "類型": "美股",
             "幣別": "USD",
-            "現價": last_close,
+            "現價": live_price,
             "上一交易日漲跌": prev_change,
             "上一交易日幅度%": prev_change_pct,
-            "報價日": str(last_date),
+            "報價日": str(quote_day),
             "市場狀態": mkt_status,
             "今日損益(TWD)": today_pnl_twd,
             "市值(TWD)": mv_usd * rate,
@@ -247,8 +304,12 @@ def build_df(tw_portfolio, us_portfolio, crypto_inputs):
         })
 
     # -------------------------
-    # 幣圈（24h：用日K兩天 close 近似）
+    # 幣圈（24h：保留你原本用日K兩天 close 近似）
     # -------------------------
+    crypto_codes = list(crypto_inputs.keys())
+    cr_prices, cr_err = fetch_last_two_closes_with_date(crypto_codes)
+    errors += cr_err
+
     for code, info in crypto_inputs.items():
         qty = float(info["qty"])
         cost = float(info["cost"])
@@ -273,11 +334,11 @@ def build_df(tw_portfolio, us_portfolio, crypto_inputs):
             "類型": "Crypto(24h)",
             "幣別": "USD",
             "現價": last_close,
-            "上一交易日漲跌": change,          # 對幣圈來說就是近似 24h 漲跌
+            "上一交易日漲跌": change,
             "上一交易日幅度%": change_pct,
             "報價日": str(last_date),
             "市場狀態": "24h",
-            "今日損益(TWD)": (change * qty) * rate,  # 你原本邏輯保留：當作 24h 變動
+            "今日損益(TWD)": (change * qty) * rate,
             "市值(TWD)": mv_usd * rate,
             "未實現損益(TWD)": unreal_usd * rate,
             "未實現報酬%": unreal_pct,
@@ -325,7 +386,7 @@ total_profit = profit_tw_total + profit_us_total + profit_crypto_total
 invested_approx = total_assets - total_profit
 return_rate_approx = (total_profit / invested_approx * 100) if invested_approx > 0 else 0.0
 
-# 今日/24h 變動（台股/美股：今日沒有更新會歸零；幣圈：保留 24h）
+# 今日/24h 變動（台股/美股：盤中才算；幣圈：24h）
 today_change = float(df["今日損益(TWD)"].sum()) if not df.empty else 0.0
 today_change_pct = (today_change / total_assets * 100) if total_assets else 0.0
 
@@ -432,7 +493,7 @@ with right:
         st.dataframe(styled, use_container_width=True, height=520, hide_index=True)
 
 # =========================
-# 10) 抓價錯誤區（方便你知道哪檔壞）
+# 10) 抓價錯誤區
 # =========================
 if errors:
     with st.expander("⚠️ 抓價/資料警告（點開看哪些代碼抓不到）", expanded=False):
